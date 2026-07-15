@@ -19,6 +19,12 @@ type EditorTab = {
   dirty: boolean;
 };
 
+type TabContextMenu = {
+  tabId: string;
+  x: number;
+  y: number;
+};
+
 type EditorInstance = Parameters<OnMount>[0];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
@@ -78,6 +84,8 @@ function App() {
   const [status, setStatus] = useState("Ready");
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
+  const [tabContextMenu, setTabContextMenu] =
+    useState<TabContextMenu | null>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const untitledSequence = useRef(1);
@@ -204,22 +212,29 @@ function App() {
     [getTabContent],
   );
 
-  const closeTab = useCallback(
-    (id: string) => {
-      const tab = tabs.find((candidate) => candidate.id === id);
-      if (!tab) return;
-      if (
-        tab.dirty &&
-        !window.confirm(`Close "${tab.name}" without saving your changes?`)
-      ) {
-        return;
+  const closeTabs = useCallback(
+    (ids: string[]) => {
+      const idSet = new Set(ids);
+      const tabsToClose = tabs.filter((tab) => idSet.has(tab.id));
+      if (tabsToClose.length === 0) return;
+
+      const dirtyTabs = tabsToClose.filter((tab) => tab.dirty);
+      if (dirtyTabs.length > 0) {
+        const description =
+          dirtyTabs.length === 1
+            ? `"${dirtyTabs[0].name}" has unsaved changes.`
+            : `${dirtyTabs.length} files have unsaved changes.`;
+        if (!window.confirm(`${description} Close without saving?`)) return;
       }
 
-      const tabIndex = tabs.findIndex((candidate) => candidate.id === id);
-      const remainingTabs = tabs.filter((candidate) => candidate.id !== id);
-      monacoRef.current?.editor
-        .getModel(monacoRef.current.Uri.parse(tab.modelPath))
-        ?.dispose();
+      const firstClosedIndex = tabs.findIndex((tab) => idSet.has(tab.id));
+      const remainingTabs = tabs.filter((tab) => !idSet.has(tab.id));
+
+      for (const tab of tabsToClose) {
+        monacoRef.current?.editor
+          .getModel(monacoRef.current.Uri.parse(tab.modelPath))
+          ?.dispose();
+      }
 
       if (remainingTabs.length === 0) {
         untitledSequence.current += 1;
@@ -228,18 +243,26 @@ function App() {
         setActiveTabId(replacement.id);
       } else {
         setTabs(remainingTabs);
-        if (id === activeTabId) {
-          const nextIndex = Math.min(tabIndex, remainingTabs.length - 1);
-          setActiveTabId(remainingTabs[nextIndex].id);
+        if (idSet.has(activeTabId)) {
+          const nextIndex = Math.min(firstClosedIndex, remainingTabs.length - 1);
+          setActiveTabId(remainingTabs[Math.max(0, nextIndex)].id);
         }
       }
-      setStatus(`Closed ${tab.name}`);
+
+      setTabContextMenu(null);
+      setStatus(
+        `Closed ${tabsToClose.length} file${tabsToClose.length === 1 ? "" : "s"}`,
+      );
     },
     [activeTabId, tabs],
   );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTabContextMenu(null);
+        return;
+      }
       if (!event.ctrlKey) return;
 
       const key = event.key.toLowerCase();
@@ -254,13 +277,29 @@ function App() {
         void saveTab(activeTab, event.shiftKey);
       } else if (key === "w" && activeTab) {
         event.preventDefault();
-        closeTab(activeTab.id);
+        closeTabs([activeTab.id]);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTab, closeTab, createNewFile, openFiles, saveTab]);
+  }, [activeTab, closeTabs, createNewFile, openFiles, saveTab]);
+
+  useEffect(() => {
+    if (!tabContextMenu) return;
+
+    const dismissMenu = () => setTabContextMenu(null);
+    window.addEventListener("pointerdown", dismissMenu);
+    window.addEventListener("blur", dismissMenu);
+    window.addEventListener("resize", dismissMenu);
+    window.addEventListener("scroll", dismissMenu, true);
+    return () => {
+      window.removeEventListener("pointerdown", dismissMenu);
+      window.removeEventListener("blur", dismissMenu);
+      window.removeEventListener("resize", dismissMenu);
+      window.removeEventListener("scroll", dismissMenu, true);
+    };
+  }, [tabContextMenu]);
 
   useEffect(() => {
     const title = activeTab
@@ -372,6 +411,16 @@ function App() {
           <div
             className={`tab ${tab.id === activeTabId ? "active" : ""}`}
             key={tab.id}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setActiveTabId(tab.id);
+              setTabContextMenu({
+                tabId: tab.id,
+                x: Math.max(4, Math.min(event.clientX, window.innerWidth - 180)),
+                y: Math.max(4, Math.min(event.clientY, window.innerHeight - 150)),
+              });
+            }}
           >
             <button
               className="tab-select"
@@ -385,7 +434,7 @@ function App() {
             <button
               className="tab-close"
               type="button"
-              onClick={() => closeTab(tab.id)}
+              onClick={() => closeTabs([tab.id])}
               title={`Close ${tab.name}`}
               aria-label={`Close ${tab.name}`}
             >
@@ -403,6 +452,55 @@ function App() {
           +
         </button>
       </nav>
+
+      {tabContextMenu && (
+        <div
+          className="tab-context-menu"
+          role="menu"
+          aria-label="Tab actions"
+          style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => closeTabs([tabContextMenu.tabId])}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => closeTabs(tabs.map((tab) => tab.id))}
+          >
+            Close all
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!tabs.some((tab) => !tab.dirty)}
+            onClick={() =>
+              closeTabs(tabs.filter((tab) => !tab.dirty).map((tab) => tab.id))
+            }
+          >
+            Close saved
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={tabs.length === 1}
+            onClick={() =>
+              closeTabs(
+                tabs
+                  .filter((tab) => tab.id !== tabContextMenu.tabId)
+                  .map((tab) => tab.id),
+              )
+            }
+          >
+            Close other
+          </button>
+        </div>
+      )}
 
       <section className="editor-pane">
         {activeTab && (
