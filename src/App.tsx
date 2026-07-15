@@ -224,6 +224,25 @@ function App() {
     }
   }, [openPaths]);
 
+  const loadDirectory = useCallback(async (path: string) => {
+    try {
+      setIsSidebarOpen(true);
+      setStatus(`Loading ${fileNameFromPath(path)}…`);
+      const children = await readDirectoryNodes(path);
+      setDirectoryRoot({
+        path,
+        name: fileNameFromPath(path),
+        isDirectory: true,
+        isExpanded: true,
+        isLoading: false,
+        children,
+      });
+      setStatus(`Opened folder ${fileNameFromPath(path)}`);
+    } catch (error) {
+      setStatus(`Open folder failed: ${String(error)}`);
+    }
+  }, []);
+
   const openDirectory = useCallback(async () => {
     try {
       const selected = await open({
@@ -232,23 +251,43 @@ function App() {
         title: "Open folder",
       });
       if (typeof selected !== "string") return;
-
-      setIsSidebarOpen(true);
-      setStatus(`Loading ${fileNameFromPath(selected)}…`);
-      const children = await readDirectoryNodes(selected);
-      setDirectoryRoot({
-        path: selected,
-        name: fileNameFromPath(selected),
-        isDirectory: true,
-        isExpanded: true,
-        isLoading: false,
-        children,
-      });
-      setStatus(`Opened folder ${fileNameFromPath(selected)}`);
+      await loadDirectory(selected);
     } catch (error) {
       setStatus(`Open folder failed: ${String(error)}`);
     }
-  }, []);
+  }, [loadDirectory]);
+
+  const openDroppedPaths = useCallback(
+    async (paths: string[]) => {
+      try {
+        setStatus("Opening dropped items…");
+        const classifiedPaths = await Promise.all(
+          paths.map(async (path) => {
+            try {
+              await readDir(path);
+              return { path, isDirectory: true };
+            } catch {
+              return { path, isDirectory: false };
+            }
+          }),
+        );
+        const directories = classifiedPaths.filter((entry) => entry.isDirectory);
+        const files = classifiedPaths
+          .filter((entry) => !entry.isDirectory)
+          .map((entry) => entry.path);
+
+        if (directories.length > 0) {
+          await loadDirectory(directories[0].path);
+        }
+        if (files.length > 0) {
+          await openPaths(files);
+        }
+      } catch (error) {
+        setStatus(`Drop failed: ${String(error)}`);
+      }
+    },
+    [loadDirectory, openPaths],
+  );
 
   const toggleDirectory = useCallback(
     async (path: string) => {
@@ -485,7 +524,7 @@ function App() {
             break;
           case "drop":
             setIsDraggingFiles(false);
-            void openPaths(payload.paths);
+            void openDroppedPaths(payload.paths);
             break;
           case "leave":
             setIsDraggingFiles(false);
@@ -511,7 +550,7 @@ function App() {
       disposed = true;
       unlisten?.();
     };
-  }, [openPaths]);
+  }, [openDroppedPaths]);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
@@ -526,7 +565,7 @@ function App() {
     <main className="app-shell">
       {isDraggingFiles && (
         <div className="drop-overlay" role="status">
-          Drop files to open
+          Drop files or a folder to open
         </div>
       )}
       <header className="toolbar">
