@@ -1,12 +1,18 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import { join } from "@tauri-apps/api/path";
 import {
   getCurrentWebview,
   type DragDropEvent,
 } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  readDir,
+  readTextFile,
+  writeTextFile,
+} from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import FileTree, { type FileTreeNode } from "./components/FileTree";
 import "./App.css";
 
 type EditorTab = {
@@ -77,6 +83,52 @@ function createUntitledTab(sequence: number): EditorTab {
   };
 }
 
+async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
+  const entries = await readDir(path);
+  const nodes = await Promise.all(
+    entries.map(async (entry) => ({
+      path: await join(path, entry.name),
+      name: entry.name,
+      isDirectory: entry.isDirectory,
+      isExpanded: false,
+      isLoading: false,
+      children: null,
+    })),
+  );
+
+  return nodes.sort(
+    (left, right) =>
+      Number(right.isDirectory) - Number(left.isDirectory) ||
+      left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+function findTreeNode(
+  nodes: FileTreeNode[],
+  path: string,
+): FileTreeNode | undefined {
+  for (const node of nodes) {
+    if (node.path === path) return node;
+    if (node.children) {
+      const match = findTreeNode(node.children, path);
+      if (match) return match;
+    }
+  }
+  return undefined;
+}
+
+function updateTreeNode(
+  nodes: FileTreeNode[],
+  path: string,
+  update: (node: FileTreeNode) => FileTreeNode,
+): FileTreeNode[] {
+  return nodes.map((node) => {
+    if (node.path === path) return update(node);
+    if (!node.children) return node;
+    return { ...node, children: updateTreeNode(node.children, path, update) };
+  });
+}
+
 function App() {
   const initialTab = useMemo(() => createUntitledTab(1), []);
   const [tabs, setTabs] = useState<EditorTab[]>([initialTab]);
@@ -86,6 +138,8 @@ function App() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [tabContextMenu, setTabContextMenu] =
     useState<TabContextMenu | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
   const editorRef = useRef<EditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const untitledSequence = useRef(1);
@@ -169,6 +223,98 @@ function App() {
       setStatus(`Open failed: ${String(error)}`);
     }
   }, [openPaths]);
+
+  const openDirectory = useCallback(async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: true,
+        title: "Open folder",
+      });
+      if (typeof selected !== "string") return;
+
+      setIsSidebarOpen(true);
+      setStatus(`Loading ${fileNameFromPath(selected)}…`);
+      const children = await readDirectoryNodes(selected);
+      setDirectoryRoot({
+        path: selected,
+        name: fileNameFromPath(selected),
+        isDirectory: true,
+        isExpanded: true,
+        isLoading: false,
+        children,
+      });
+      setStatus(`Opened folder ${fileNameFromPath(selected)}`);
+    } catch (error) {
+      setStatus(`Open folder failed: ${String(error)}`);
+    }
+  }, []);
+
+  const toggleDirectory = useCallback(
+    async (path: string) => {
+      if (!directoryRoot?.children) return;
+      const node = findTreeNode(directoryRoot.children, path);
+      if (!node?.isDirectory || node.isLoading) return;
+
+      if (node.children !== null) {
+        setDirectoryRoot((root) =>
+          root?.children
+            ? {
+                ...root,
+                children: updateTreeNode(root.children, path, (current) => ({
+                  ...current,
+                  isExpanded: !current.isExpanded,
+                })),
+              }
+            : root,
+        );
+        return;
+      }
+
+      setDirectoryRoot((root) =>
+        root?.children
+          ? {
+              ...root,
+              children: updateTreeNode(root.children, path, (current) => ({
+                ...current,
+                isLoading: true,
+              })),
+            }
+          : root,
+      );
+
+      try {
+        const children = await readDirectoryNodes(path);
+        setDirectoryRoot((root) =>
+          root?.children
+            ? {
+                ...root,
+                children: updateTreeNode(root.children, path, (current) => ({
+                  ...current,
+                  isExpanded: true,
+                  isLoading: false,
+                  children,
+                })),
+              }
+            : root,
+        );
+      } catch (error) {
+        setDirectoryRoot((root) =>
+          root?.children
+            ? {
+                ...root,
+                children: updateTreeNode(root.children, path, (current) => ({
+                  ...current,
+                  isLoading: false,
+                })),
+              }
+            : root,
+        );
+        setStatus(`Could not read folder: ${String(error)}`);
+      }
+    },
+    [directoryRoot],
+  );
 
   const getTabContent = useCallback((tab: EditorTab) => {
     const model = monacoRef.current?.editor.getModel(
@@ -266,7 +412,10 @@ function App() {
       if (!event.ctrlKey) return;
 
       const key = event.key.toLowerCase();
-      if (key === "n") {
+      if (key === "b") {
+        event.preventDefault();
+        setIsSidebarOpen((isOpen) => !isOpen);
+      } else if (key === "n") {
         event.preventDefault();
         createNewFile();
       } else if (key === "o") {
@@ -391,6 +540,20 @@ function App() {
           </button>
           <button
             type="button"
+            onClick={() => void openDirectory()}
+            title="Open folder"
+          >
+            Folder
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
+            title="Toggle sidebar (Ctrl+B)"
+          >
+            Sidebar
+          </button>
+          <button
+            type="button"
             onClick={() => activeTab && void saveTab(activeTab)}
             title="Save (Ctrl+S)"
           >
@@ -406,7 +569,41 @@ function App() {
         </div>
       </header>
 
-      <nav className="tab-bar" aria-label="Open files">
+      <div className="workspace">
+        {isSidebarOpen && (
+          <aside className="sidebar" aria-label="File explorer">
+            <div className="sidebar-header">
+              <span title={directoryRoot?.path}>
+                {directoryRoot?.name ?? "Explorer"}
+              </span>
+              <button
+                type="button"
+                onClick={() => void openDirectory()}
+                title="Open folder"
+                aria-label="Open folder"
+              >
+                +
+              </button>
+            </div>
+            {directoryRoot?.children ? (
+              <FileTree
+                nodes={directoryRoot.children}
+                onOpenFile={(path) => void openPaths([path])}
+                onToggleDirectory={(path) => void toggleDirectory(path)}
+              />
+            ) : (
+              <div className="sidebar-empty">
+                <span>No folder open</span>
+                <button type="button" onClick={() => void openDirectory()}>
+                  Open folder
+                </button>
+              </div>
+            )}
+          </aside>
+        )}
+
+        <div className="editor-workspace">
+          <nav className="tab-bar" aria-label="Open files">
         {tabs.map((tab) => (
           <div
             className={`tab ${tab.id === activeTabId ? "active" : ""}`}
@@ -451,16 +648,16 @@ function App() {
         >
           +
         </button>
-      </nav>
+          </nav>
 
-      {tabContextMenu && (
-        <div
-          className="tab-context-menu"
-          role="menu"
-          aria-label="Tab actions"
-          style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
+          {tabContextMenu && (
+            <div
+              className="tab-context-menu"
+              role="menu"
+              aria-label="Tab actions"
+              style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
           <button
             type="button"
             role="menuitem"
@@ -499,10 +696,10 @@ function App() {
           >
             Close other
           </button>
-        </div>
-      )}
+            </div>
+          )}
 
-      <section className="editor-pane">
+          <section className="editor-pane">
         {activeTab && (
           <Editor
             path={activeTab.modelPath}
@@ -558,7 +755,9 @@ function App() {
             }}
           />
         )}
-      </section>
+          </section>
+        </div>
+      </div>
 
       <footer className="status-bar">
         <span className="status-message" title={status}>
