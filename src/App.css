@@ -53,6 +53,86 @@ button {
   pointer-events: none;
 }
 
+.quick-open-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 64px 16px 16px;
+  background: rgb(0 0 0 / 22%);
+}
+
+.quick-open {
+  width: min(620px, 100%);
+  overflow: hidden;
+  border: 1px solid #3a4048;
+  border-radius: 7px;
+  background: #202328;
+  box-shadow: 0 18px 48px rgb(0 0 0 / 52%);
+}
+
+.quick-open input {
+  width: calc(100% - 16px);
+  height: 38px;
+  margin: 8px;
+  padding: 0 11px;
+  border: 1px solid #6076bd;
+  border-radius: 4px;
+  outline: 0;
+  color: #edf0f3;
+  background: #15181b;
+  font: inherit;
+}
+
+.quick-open input::placeholder {
+  color: #747c86;
+}
+
+.quick-open-results {
+  max-height: min(380px, calc(100vh - 150px));
+  padding: 0 5px 5px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #444b54 transparent;
+}
+
+.quick-open-results button {
+  width: 100%;
+  display: grid;
+  gap: 1px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: #d9dde2;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quick-open-results button.selected {
+  background: #343a43;
+}
+
+.quick-open-results button span,
+.quick-open-results button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-open-results button small {
+  color: #858d96;
+  font-size: 11px;
+}
+
+.quick-open-empty {
+  padding: 22px 12px 26px;
+  color: #818993;
+  text-align: center;
+}
+
 .toolbar {
   display: flex;
   align-items: center;

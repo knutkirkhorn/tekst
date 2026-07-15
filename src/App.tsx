@@ -13,6 +13,7 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FileTree, { type FileTreeNode } from "./components/FileTree";
+import QuickOpen, { type RecentFile } from "./components/QuickOpen";
 import "./App.css";
 
 type EditorTab = {
@@ -140,6 +141,8 @@ function App() {
     useState<TabContextMenu | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
+  const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
+  const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
   const editorRef = useRef<EditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const untitledSequence = useRef(1);
@@ -162,6 +165,13 @@ function App() {
     setStatus("New file");
   }, []);
 
+  const rememberRecentFile = useCallback((path: string) => {
+    setRecentFiles((files) => [
+      { path, name: fileNameFromPath(path) },
+      ...files.filter((file) => file.path !== path),
+    ].slice(0, 30));
+  }, []);
+
   const openPaths = useCallback(async (paths: string[]) => {
     try {
       const existingPath = new Map(
@@ -175,6 +185,7 @@ function App() {
         const existingId = existingPath.get(filePath);
         if (existingId) {
           setActiveTabId(existingId);
+          rememberRecentFile(filePath);
           continue;
         }
 
@@ -190,6 +201,7 @@ function App() {
         };
         newTabs.push(tab);
         existingPath.set(filePath, tab.id);
+        rememberRecentFile(filePath);
       }
 
       if (newTabs.length > 0) {
@@ -207,7 +219,7 @@ function App() {
     } catch (error) {
       setStatus(`Open failed: ${String(error)}`);
     }
-  }, [tabs]);
+  }, [rememberRecentFile, tabs]);
 
   const openFiles = useCallback(async () => {
     try {
@@ -446,12 +458,17 @@ function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setTabContextMenu(null);
+        setIsQuickOpenOpen(false);
         return;
       }
       if (!event.ctrlKey) return;
 
       const key = event.key.toLowerCase();
-      if (key === "b") {
+      if (key === "p") {
+        event.preventDefault();
+        setTabContextMenu(null);
+        setIsQuickOpenOpen(true);
+      } else if (key === "b") {
         event.preventDefault();
         setIsSidebarOpen((isOpen) => !isOpen);
       } else if (key === "n") {
@@ -568,6 +585,12 @@ function App() {
           Drop files or a folder to open
         </div>
       )}
+      <QuickOpen
+        isOpen={isQuickOpenOpen}
+        recentFiles={recentFiles}
+        onClose={() => setIsQuickOpenOpen(false)}
+        onSelect={(path) => void openPaths([path])}
+      />
       <header className="toolbar">
         <span className="brand">tekst</span>
         <div className="toolbar-actions">
