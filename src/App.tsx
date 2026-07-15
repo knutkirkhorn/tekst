@@ -1,4 +1,8 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import {
+  getCurrentWebview,
+  type DragDropEvent,
+} from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -73,6 +77,7 @@ function App() {
   const [activeTabId, setActiveTabId] = useState(initialTab.id);
   const [status, setStatus] = useState("Ready");
   const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const editorRef = useRef<EditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const untitledSequence = useRef(1);
@@ -95,16 +100,8 @@ function App() {
     setStatus("New file");
   }, []);
 
-  const openFiles = useCallback(async () => {
+  const openPaths = useCallback(async (paths: string[]) => {
     try {
-      const selected = await open({
-        multiple: true,
-        directory: false,
-        title: "Open files",
-      });
-
-      if (!selected) return;
-      const paths = Array.isArray(selected) ? selected : [selected];
       const existingPath = new Map(
         tabs
           .filter((tab) => tab.filePath)
@@ -149,6 +146,21 @@ function App() {
       setStatus(`Open failed: ${String(error)}`);
     }
   }, [tabs]);
+
+  const openFiles = useCallback(async () => {
+    try {
+      const selected = await open({
+        multiple: true,
+        directory: false,
+        title: "Open files",
+      });
+
+      if (!selected) return;
+      await openPaths(Array.isArray(selected) ? selected : [selected]);
+    } catch (error) {
+      setStatus(`Open failed: ${String(error)}`);
+    }
+  }, [openPaths]);
 
   const getTabContent = useCallback((tab: EditorTab) => {
     const model = monacoRef.current?.editor.getModel(
@@ -270,6 +282,49 @@ function App() {
     return () => window.removeEventListener("beforeunload", warnBeforeClose);
   }, [tabs]);
 
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void getCurrentWebview()
+      .onDragDropEvent(({ payload }: { payload: DragDropEvent }) => {
+        switch (payload.type) {
+          case "enter":
+          case "over":
+            setIsDraggingFiles(true);
+            break;
+          case "drop":
+            setIsDraggingFiles(false);
+            void openPaths(payload.paths);
+            break;
+          case "leave":
+            setIsDraggingFiles(false);
+            break;
+          default: {
+            const exhaustiveCheck: never = payload;
+            return exhaustiveCheck;
+          }
+        }
+      })
+      .then((stopListening) => {
+        if (disposed) {
+          stopListening();
+        } else {
+          unlisten = stopListening;
+        }
+      })
+      .catch((error) => {
+        setStatus(`Drag and drop unavailable: ${String(error)}`);
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [openPaths]);
+
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -281,6 +336,11 @@ function App() {
 
   return (
     <main className="app-shell">
+      {isDraggingFiles && (
+        <div className="drop-overlay" role="status">
+          Drop files to open
+        </div>
+      )}
       <header className="toolbar">
         <span className="brand">tekst</span>
         <div className="toolbar-actions">
