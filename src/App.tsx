@@ -493,10 +493,16 @@ function App() {
           "button:not(:disabled)",
         ) ?? [],
       );
-      const activeIndex = items.indexOf(document.activeElement as HTMLButtonElement);
-      focusAppMenuItem(menu, activeIndex === -1 ? (direction === 1 ? 0 : -1) : activeIndex + direction);
+      const selectedIndex =
+        selectedAppMenuItem?.menu === menu
+          ? selectedAppMenuItem.index
+          : items.indexOf(document.activeElement as HTMLButtonElement);
+      focusAppMenuItem(
+        menu,
+        selectedIndex === -1 ? (direction === 1 ? 0 : -1) : selectedIndex + direction,
+      );
     },
-    [focusAppMenuItem],
+    [focusAppMenuItem, selectedAppMenuItem],
   );
 
   const switchAppMenu = useCallback(
