@@ -214,6 +214,16 @@ button {
   background: #343a43;
 }
 
+.app-menu-dropdown button.selected {
+  background: #343a43;
+}
+
+.app-menu-dropdown button:focus-visible {
+  outline: 1px solid #8ea7ff;
+  outline-offset: -1px;
+  background: #343a43;
+}
+
 .app-menu-dropdown button:disabled {
   color: #686f78;
   cursor: default;

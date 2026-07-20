@@ -35,7 +35,14 @@ type TabContextMenu = {
 
 type AppMenu = "file" | "view";
 
+type AppMenuSelection = {
+  menu: AppMenu;
+  index: number;
+};
+
 type EditorInstance = Parameters<OnMount>[0];
+
+const APP_MENUS: AppMenu[] = ["file", "view"];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   c: "c",
@@ -143,12 +150,18 @@ function App() {
   const [tabContextMenu, setTabContextMenu] =
     useState<TabContextMenu | null>(null);
   const [openAppMenu, setOpenAppMenu] = useState<AppMenu | null>(null);
+  const [selectedAppMenuItem, setSelectedAppMenuItem] =
+    useState<AppMenuSelection | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
   const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
   const editorRef = useRef<EditorInstance | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const appMenuRefs = useRef<Record<AppMenu, HTMLDivElement | null>>({
+    file: null,
+    view: null,
+  });
   const untitledSequence = useRef(1);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
@@ -458,11 +471,75 @@ function App() {
     [activeTabId, tabs],
   );
 
+  const focusAppMenuItem = useCallback((menu: AppMenu, index: number) => {
+    requestAnimationFrame(() => {
+      const items = Array.from(
+        appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
+          "button:not(:disabled)",
+        ) ?? [],
+      );
+      if (items.length === 0) return;
+
+      const selectedIndex = ((index % items.length) + items.length) % items.length;
+      setSelectedAppMenuItem({ menu, index: selectedIndex });
+      items[selectedIndex].focus();
+    });
+  }, []);
+
+  const moveAppMenuFocus = useCallback(
+    (menu: AppMenu, direction: 1 | -1) => {
+      const items = Array.from(
+        appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
+          "button:not(:disabled)",
+        ) ?? [],
+      );
+      const activeIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+      focusAppMenuItem(menu, activeIndex === -1 ? (direction === 1 ? 0 : -1) : activeIndex + direction);
+    },
+    [focusAppMenuItem],
+  );
+
+  const switchAppMenu = useCallback(
+    (menu: AppMenu, direction: 1 | -1) => {
+      const currentIndex = APP_MENUS.indexOf(menu);
+      const nextMenu =
+        APP_MENUS[
+          (currentIndex + direction + APP_MENUS.length) % APP_MENUS.length
+        ];
+      setOpenAppMenu(nextMenu);
+      focusAppMenuItem(nextMenu, 0);
+    },
+    [focusAppMenuItem],
+  );
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (openAppMenu) {
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          moveAppMenuFocus(openAppMenu, 1);
+          return;
+        }
+        if (event.key === "ArrowUp") {
+          event.preventDefault();
+          moveAppMenuFocus(openAppMenu, -1);
+          return;
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          switchAppMenu(openAppMenu, 1);
+          return;
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          switchAppMenu(openAppMenu, -1);
+          return;
+        }
+      }
       if (event.key === "Escape") {
         setTabContextMenu(null);
         setOpenAppMenu(null);
+        setSelectedAppMenuItem(null);
         setIsQuickOpenOpen(false);
         return;
       }
@@ -493,7 +570,16 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeTab, closeTabs, createNewFile, openFiles, saveTab]);
+  }, [
+    activeTab,
+    closeTabs,
+    createNewFile,
+    moveAppMenuFocus,
+    openAppMenu,
+    openFiles,
+    saveTab,
+    switchAppMenu,
+  ]);
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;
@@ -536,7 +622,10 @@ function App() {
   useEffect(() => {
     if (!openAppMenu) return;
 
-    const dismissMenu = () => setOpenAppMenu(null);
+    const dismissMenu = () => {
+      setOpenAppMenu(null);
+      setSelectedAppMenuItem(null);
+    };
     window.addEventListener("pointerdown", dismissMenu);
     window.addEventListener("blur", dismissMenu);
     window.addEventListener("resize", dismissMenu);
@@ -642,9 +731,11 @@ function App() {
               aria-expanded={openAppMenu === "file"}
               aria-haspopup="menu"
               onPointerDown={(event) => event.stopPropagation()}
-              onClick={() =>
-                setOpenAppMenu((menu) => (menu === "file" ? null : "file"))
-              }
+              onClick={() => {
+                const isOpen = openAppMenu === "file";
+                setOpenAppMenu(isOpen ? null : "file");
+                setSelectedAppMenuItem(isOpen ? null : { menu: "file", index: 0 });
+              }}
             >
               File
             </button>
@@ -653,11 +744,21 @@ function App() {
                 className="app-menu-dropdown"
                 role="menu"
                 aria-label="File"
+                ref={(menu) => {
+                  appMenuRefs.current.file = menu;
+                }}
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
                   role="menuitem"
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 0
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 0 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     createNewFile();
@@ -669,6 +770,13 @@ function App() {
                 <button
                   type="button"
                   role="menuitem"
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 1
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 1 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     void openFiles();
@@ -680,6 +788,13 @@ function App() {
                 <button
                   type="button"
                   role="menuitem"
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 2
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 2 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     void openDirectory();
@@ -692,6 +807,13 @@ function App() {
                   type="button"
                   role="menuitem"
                   disabled={!activeTab}
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 3
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 3 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     if (activeTab) void saveTab(activeTab);
@@ -704,6 +826,13 @@ function App() {
                   type="button"
                   role="menuitem"
                   disabled={!activeTab}
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 4
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 4 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     if (activeTab) void saveTab(activeTab, true);
@@ -717,6 +846,13 @@ function App() {
                   type="button"
                   role="menuitem"
                   disabled={!activeTab}
+                  className={
+                    selectedAppMenuItem?.menu === "file" &&
+                    selectedAppMenuItem.index === 5
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "file", index: 5 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     if (activeTab) closeTabs([activeTab.id]);
@@ -736,9 +872,11 @@ function App() {
               aria-expanded={openAppMenu === "view"}
               aria-haspopup="menu"
               onPointerDown={(event) => event.stopPropagation()}
-              onClick={() =>
-                setOpenAppMenu((menu) => (menu === "view" ? null : "view"))
-              }
+              onClick={() => {
+                const isOpen = openAppMenu === "view";
+                setOpenAppMenu(isOpen ? null : "view");
+                setSelectedAppMenuItem(isOpen ? null : { menu: "view", index: 0 });
+              }}
             >
               View
             </button>
@@ -747,11 +885,21 @@ function App() {
                 className="app-menu-dropdown"
                 role="menu"
                 aria-label="View"
+                ref={(menu) => {
+                  appMenuRefs.current.view = menu;
+                }}
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <button
                   type="button"
                   role="menuitem"
+                  className={
+                    selectedAppMenuItem?.menu === "view" &&
+                    selectedAppMenuItem.index === 0
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "view", index: 0 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     setIsSidebarOpen((isOpen) => !isOpen);
@@ -763,6 +911,13 @@ function App() {
                 <button
                   type="button"
                   role="menuitem"
+                  className={
+                    selectedAppMenuItem?.menu === "view" &&
+                    selectedAppMenuItem.index === 1
+                      ? "selected"
+                      : undefined
+                  }
+                  onMouseEnter={() => setSelectedAppMenuItem({ menu: "view", index: 1 })}
                   onClick={() => {
                     setOpenAppMenu(null);
                     setIsQuickOpenOpen(true);
