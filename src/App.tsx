@@ -94,6 +94,22 @@ function createUntitledTab(sequence: number): EditorTab {
   };
 }
 
+function nextUntitledSequence(tabs: EditorTab[]) {
+  const usedSequences = new Set(
+    tabs
+      .filter((tab) => tab.filePath === null)
+      .map((tab) => {
+        if (tab.name === "Untitled") return 1;
+        const match = /^Untitled (\d+)$/.exec(tab.name);
+        return match ? Number(match[1]) : 0;
+      }),
+  );
+
+  let sequence = 1;
+  while (usedSequences.has(sequence)) sequence += 1;
+  return sequence;
+}
+
 async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
   const entries = await readDir(path);
   const nodes = await Promise.all(
@@ -162,7 +178,6 @@ function App() {
     file: null,
     view: null,
   });
-  const untitledSequence = useRef(1);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
@@ -175,12 +190,11 @@ function App() {
   }, []);
 
   const createNewFile = useCallback(() => {
-    untitledSequence.current += 1;
-    const tab = createUntitledTab(untitledSequence.current);
+    const tab = createUntitledTab(nextUntitledSequence(tabs));
     setTabs((currentTabs) => [...currentTabs, tab]);
     setActiveTabId(tab.id);
     setStatus("New file");
-  }, []);
+  }, [tabs]);
 
   const rememberRecentFile = useCallback((path: string) => {
     setRecentFiles((files) => [
@@ -451,8 +465,7 @@ function App() {
       }
 
       if (remainingTabs.length === 0) {
-        untitledSequence.current += 1;
-        const replacement = createUntitledTab(untitledSequence.current);
+        const replacement = createUntitledTab(1);
         setTabs([replacement]);
         setActiveTabId(replacement.id);
       } else {
