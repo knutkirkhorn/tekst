@@ -550,6 +550,16 @@ function App() {
     [focusAppMenuItem],
   );
 
+  const selectAdjacentTab = useCallback(
+    (direction: 1 | -1) => {
+      const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+      const nextIndex =
+        (currentIndex + direction + tabs.length) % tabs.length;
+      setActiveTabId(tabs[nextIndex].id);
+    },
+    [activeTabId, tabs],
+  );
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (openAppMenu) {
@@ -579,6 +589,11 @@ function App() {
         setOpenAppMenu(null);
         setSelectedAppMenuItem(null);
         setIsQuickOpenOpen(false);
+        return;
+      }
+      if (event.ctrlKey && event.key === "Tab") {
+        event.preventDefault();
+        selectAdjacentTab(event.shiftKey ? -1 : 1);
         return;
       }
       if (!event.ctrlKey && !event.metaKey) return;
@@ -616,6 +631,7 @@ function App() {
     openAppMenu,
     openFiles,
     saveTab,
+    selectAdjacentTab,
     switchAppMenu,
   ]);
 
