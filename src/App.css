@@ -150,10 +150,14 @@ button {
   letter-spacing: 0.02em;
 }
 
-.toolbar-actions {
+.app-menus {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+.app-menu {
+  position: relative;
 }
 
 .toolbar button {
@@ -172,6 +176,64 @@ button {
 
 .toolbar button:active {
   background: #30353c;
+}
+
+.app-menu-trigger[aria-expanded="true"] {
+  border-color: #353a41;
+  background: #25292e;
+}
+
+.app-menu-dropdown {
+  position: absolute;
+  z-index: 250;
+  top: calc(100% + 5px);
+  left: 0;
+  min-width: 210px;
+  padding: 4px;
+  border: 1px solid #3a4048;
+  border-radius: 6px;
+  background: #202328;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 45%);
+}
+
+.app-menu-dropdown button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 3px;
+  color: #d9dde2;
+  text-align: left;
+}
+
+.app-menu-dropdown button:hover {
+  border-color: transparent;
+  background: #343a43;
+}
+
+.app-menu-dropdown button:disabled {
+  color: #686f78;
+  cursor: default;
+}
+
+.app-menu-dropdown button:disabled:hover {
+  background: transparent;
+}
+
+.app-menu-dropdown kbd {
+  color: #8c949e;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.app-menu-separator {
+  height: 1px;
+  margin: 4px 5px;
+  background: #353b43;
 }
 
 .workspace {

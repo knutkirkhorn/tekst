@@ -33,6 +33,8 @@ type TabContextMenu = {
   y: number;
 };
 
+type AppMenu = "file" | "view";
+
 type EditorInstance = Parameters<OnMount>[0];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
@@ -140,6 +142,7 @@ function App() {
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [tabContextMenu, setTabContextMenu] =
     useState<TabContextMenu | null>(null);
+  const [openAppMenu, setOpenAppMenu] = useState<AppMenu | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
@@ -459,6 +462,7 @@ function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setTabContextMenu(null);
+        setOpenAppMenu(null);
         setIsQuickOpenOpen(false);
         return;
       }
@@ -528,6 +532,20 @@ function App() {
       window.removeEventListener("scroll", dismissMenu, true);
     };
   }, [tabContextMenu]);
+
+  useEffect(() => {
+    if (!openAppMenu) return;
+
+    const dismissMenu = () => setOpenAppMenu(null);
+    window.addEventListener("pointerdown", dismissMenu);
+    window.addEventListener("blur", dismissMenu);
+    window.addEventListener("resize", dismissMenu);
+    return () => {
+      window.removeEventListener("pointerdown", dismissMenu);
+      window.removeEventListener("blur", dismissMenu);
+      window.removeEventListener("resize", dismissMenu);
+    };
+  }, [openAppMenu]);
 
   useEffect(() => {
     const title = activeTab
@@ -616,41 +634,146 @@ function App() {
       />
       <header className="toolbar">
         <span className="brand">tekst</span>
-        <div className="toolbar-actions">
-          <button type="button" onClick={createNewFile} title="New (Ctrl+N)">
-            New
-          </button>
-          <button type="button" onClick={() => void openFiles()} title="Open (Ctrl+O)">
-            Open
-          </button>
-          <button
-            type="button"
-            onClick={() => void openDirectory()}
-            title="Open folder"
-          >
-            Folder
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsSidebarOpen((isOpen) => !isOpen)}
-            title="Toggle sidebar (Ctrl+B)"
-          >
-            Sidebar
-          </button>
-          <button
-            type="button"
-            onClick={() => activeTab && void saveTab(activeTab)}
-            title="Save (Ctrl+S)"
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => activeTab && void saveTab(activeTab, true)}
-            title="Save as (Ctrl+Shift+S)"
-          >
-            Save as
-          </button>
+        <div className="app-menus">
+          <div className="app-menu">
+            <button
+              className="app-menu-trigger"
+              type="button"
+              aria-expanded={openAppMenu === "file"}
+              aria-haspopup="menu"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() =>
+                setOpenAppMenu((menu) => (menu === "file" ? null : "file"))
+              }
+            >
+              File
+            </button>
+            {openAppMenu === "file" && (
+              <div
+                className="app-menu-dropdown"
+                role="menu"
+                aria-label="File"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    createNewFile();
+                  }}
+                >
+                  <span>New file</span>
+                  <kbd>Ctrl/⌘ N</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    void openFiles();
+                  }}
+                >
+                  <span>Open files…</span>
+                  <kbd>Ctrl/⌘ O</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    void openDirectory();
+                  }}
+                >
+                  <span>Open folder…</span>
+                </button>
+                <div className="app-menu-separator" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!activeTab}
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    if (activeTab) void saveTab(activeTab);
+                  }}
+                >
+                  <span>Save</span>
+                  <kbd>Ctrl/⌘ S</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!activeTab}
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    if (activeTab) void saveTab(activeTab, true);
+                  }}
+                >
+                  <span>Save as…</span>
+                  <kbd>Ctrl/⌘ ⇧ S</kbd>
+                </button>
+                <div className="app-menu-separator" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={!activeTab}
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    if (activeTab) closeTabs([activeTab.id]);
+                  }}
+                >
+                  <span>Close tab</span>
+                  <kbd>Ctrl/⌘ W</kbd>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="app-menu">
+            <button
+              className="app-menu-trigger"
+              type="button"
+              aria-expanded={openAppMenu === "view"}
+              aria-haspopup="menu"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={() =>
+                setOpenAppMenu((menu) => (menu === "view" ? null : "view"))
+              }
+            >
+              View
+            </button>
+            {openAppMenu === "view" && (
+              <div
+                className="app-menu-dropdown"
+                role="menu"
+                aria-label="View"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    setIsSidebarOpen((isOpen) => !isOpen);
+                  }}
+                >
+                  <span>{isSidebarOpen ? "Hide sidebar" : "Show sidebar"}</span>
+                  <kbd>Ctrl/⌘ B</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpenAppMenu(null);
+                    setIsQuickOpenOpen(true);
+                  }}
+                >
+                  <span>Quick open</span>
+                  <kbd>Ctrl/⌘ P</kbd>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
