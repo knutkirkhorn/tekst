@@ -555,7 +555,7 @@ function App() {
       if (key === "p") {
         event.preventDefault();
         setTabContextMenu(null);
-        setIsQuickOpenOpen(true);
+        setIsQuickOpenOpen((isOpen) => !isOpen);
       } else if (key === "b") {
         event.preventDefault();
         setIsSidebarOpen((isOpen) => !isOpen);
