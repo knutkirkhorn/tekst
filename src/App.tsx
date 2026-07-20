@@ -33,7 +33,9 @@ type TabContextMenu = {
   y: number;
 };
 
-type AppMenu = "file" | "view";
+const APP_MENUS = ["file", "view"] as const;
+
+type AppMenu = (typeof APP_MENUS)[number];
 
 type AppMenuSelection = {
   menu: AppMenu;
@@ -41,8 +43,6 @@ type AppMenuSelection = {
 };
 
 type EditorInstance = Parameters<OnMount>[0];
-
-const APP_MENUS: AppMenu[] = ["file", "view"];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
   c: "c",
