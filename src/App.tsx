@@ -42,6 +42,11 @@ type AppMenuSelection = {
   index: number;
 };
 
+type PendingTabClose = {
+  ids: string[];
+  description: string;
+};
+
 type EditorInstance = Parameters<OnMount>[0];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
@@ -168,6 +173,8 @@ function App() {
   const [openAppMenu, setOpenAppMenu] = useState<AppMenu | null>(null);
   const [selectedAppMenuItem, setSelectedAppMenuItem] =
     useState<AppMenuSelection | null>(null);
+  const [pendingTabClose, setPendingTabClose] =
+    useState<PendingTabClose | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
@@ -440,20 +447,11 @@ function App() {
     [getTabContent],
   );
 
-  const closeTabs = useCallback(
+  const performCloseTabs = useCallback(
     (ids: string[]) => {
       const idSet = new Set(ids);
       const tabsToClose = tabs.filter((tab) => idSet.has(tab.id));
       if (tabsToClose.length === 0) return;
-
-      const dirtyTabs = tabsToClose.filter((tab) => tab.dirty);
-      if (dirtyTabs.length > 0) {
-        const description =
-          dirtyTabs.length === 1
-            ? `"${dirtyTabs[0].name}" has unsaved changes.`
-            : `${dirtyTabs.length} files have unsaved changes.`;
-        if (!window.confirm(`${description} Close without saving?`)) return;
-      }
 
       const firstClosedIndex = tabs.findIndex((tab) => idSet.has(tab.id));
       const remainingTabs = tabs.filter((tab) => !idSet.has(tab.id));
@@ -482,6 +480,27 @@ function App() {
       );
     },
     [activeTabId, tabs],
+  );
+
+  const closeTabs = useCallback(
+    (ids: string[]) => {
+      const tabsToClose = tabs.filter((tab) => ids.includes(tab.id));
+      const dirtyTabs = tabsToClose.filter((tab) => tab.dirty);
+
+      if (dirtyTabs.length > 0) {
+        setPendingTabClose({
+          ids,
+          description:
+            dirtyTabs.length === 1
+              ? `"${dirtyTabs[0].name}" has unsaved changes.`
+              : `${dirtyTabs.length} files have unsaved changes.`,
+        });
+        return;
+      }
+
+      performCloseTabs(ids);
+    },
+    [performCloseTabs, tabs],
   );
 
   const focusAppMenuItem = useCallback((menu: AppMenu, index: number) => {
@@ -740,6 +759,35 @@ function App() {
         onClose={() => setIsQuickOpenOpen(false)}
         onSelect={(path) => void openPaths([path])}
       />
+      {pendingTabClose && (
+        <div className="confirm-dialog-backdrop" role="presentation">
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="close-tab-dialog-title"
+            aria-describedby="close-tab-dialog-description"
+          >
+            <h2 id="close-tab-dialog-title">Close without saving?</h2>
+            <p id="close-tab-dialog-description">{pendingTabClose.description}</p>
+            <div className="confirm-dialog-actions">
+              <button type="button" onClick={() => setPendingTabClose(null)}>
+                Cancel
+              </button>
+              <button
+                className="danger"
+                type="button"
+                onClick={() => {
+                  performCloseTabs(pendingTabClose.ids);
+                  setPendingTabClose(null);
+                }}
+              >
+                Close without saving
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       <header className="toolbar">
         <span className="brand">tekst</span>
         <div className="app-menus">
