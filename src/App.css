@@ -469,6 +469,7 @@ button {
 }
 
 .tab {
+  position: relative;
   flex: 0 1 180px;
   min-width: 96px;
   max-width: 220px;
@@ -477,6 +478,32 @@ button {
   border-right: 1px solid #25292e;
   color: #9299a1;
   background: #181b1f;
+  cursor: pointer;
+}
+
+.tab.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+
+.tab.drop-before::before,
+.tab.drop-after::after {
+  position: absolute;
+  z-index: 2;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: #8ea7ff;
+  content: "";
+}
+
+.tab.drop-before::before {
+  left: -1px;
+}
+
+.tab.drop-after::after {
+  right: -1px;
 }
 
 .tab.active {
@@ -497,6 +524,10 @@ button {
   background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.tab.dragging .tab-select {
+  cursor: grabbing;
 }
 
 .tab-name {

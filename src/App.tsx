@@ -33,6 +33,18 @@ type TabContextMenu = {
   y: number;
 };
 
+type TabDropTarget = {
+  tabId: string;
+  position: "before" | "after";
+};
+
+type TabDrag = {
+  id: string;
+  pointerId: number;
+  startX: number;
+  hasMoved: boolean;
+};
+
 const APP_MENUS = ["file", "view"] as const;
 
 type AppMenu = (typeof APP_MENUS)[number];
@@ -175,6 +187,8 @@ function App() {
     useState<AppMenuSelection | null>(null);
   const [pendingTabClose, setPendingTabClose] =
     useState<PendingTabClose | null>(null);
+  const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
+  const [tabDropTarget, setTabDropTarget] = useState<TabDropTarget | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
   const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
@@ -185,6 +199,9 @@ function App() {
     file: null,
     view: null,
   });
+  const tabDragRef = useRef<TabDrag | null>(null);
+  const tabDropTargetRef = useRef<TabDropTarget | null>(null);
+  const ignoreTabClickRef = useRef(false);
 
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
 
@@ -558,6 +575,52 @@ function App() {
       setActiveTabId(tabs[nextIndex].id);
     },
     [activeTabId, tabs],
+  );
+
+  const reorderTabs = useCallback(
+    (sourceId: string, targetId: string, position: TabDropTarget["position"]) => {
+      if (sourceId === targetId) return;
+
+      setTabs((currentTabs) => {
+        const sourceTab = currentTabs.find((tab) => tab.id === sourceId);
+        if (!sourceTab) return currentTabs;
+
+        const remainingTabs = currentTabs.filter((tab) => tab.id !== sourceId);
+        const targetIndex = remainingTabs.findIndex((tab) => tab.id === targetId);
+        if (targetIndex === -1) return currentTabs;
+
+        const insertionIndex = targetIndex + (position === "after" ? 1 : 0);
+        return [
+          ...remainingTabs.slice(0, insertionIndex),
+          sourceTab,
+          ...remainingTabs.slice(insertionIndex),
+        ];
+      });
+    },
+    [],
+  );
+
+  const updateTabDropTarget = useCallback(
+    (sourceId: string, clientX: number, clientY: number) => {
+      const target = document
+        .elementFromPoint(clientX, clientY)
+        ?.closest<HTMLDivElement>(".tab[data-tab-id]");
+      if (!target || target.dataset.tabId === sourceId) {
+        tabDropTargetRef.current = null;
+        setTabDropTarget(null);
+        return;
+      }
+
+      const bounds = target.getBoundingClientRect();
+      const dropTarget: TabDropTarget = {
+        tabId: target.dataset.tabId as string,
+        position:
+          clientX < bounds.left + bounds.width / 2 ? "before" : "after",
+      };
+      tabDropTargetRef.current = dropTarget;
+      setTabDropTarget(dropTarget);
+    },
+    [],
   );
 
   useEffect(() => {
@@ -1052,8 +1115,82 @@ function App() {
           <nav className="tab-bar" aria-label="Open files">
         {tabs.map((tab) => (
           <div
-            className={`tab ${tab.id === activeTabId ? "active" : ""}`}
+            className={`tab ${tab.id === activeTabId ? "active" : ""} ${
+              tab.id === draggedTabId ? "dragging" : ""
+            } ${
+              tabDropTarget?.tabId === tab.id
+                ? `drop-${tabDropTarget.position}`
+                : ""
+            }`}
             key={tab.id}
+            data-tab-id={tab.id}
+            onPointerDown={(event) => {
+              if (
+                event.button !== 0 ||
+                event.target instanceof HTMLElement &&
+                event.target.closest(".tab-close")
+              ) {
+                return;
+              }
+              event.currentTarget.setPointerCapture(event.pointerId);
+              tabDragRef.current = {
+                id: tab.id,
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                hasMoved: false,
+              };
+            }}
+            onPointerMove={(event) => {
+              const tabDrag = tabDragRef.current;
+              if (!tabDrag || tabDrag.pointerId !== event.pointerId) return;
+              if (!tabDrag.hasMoved && Math.abs(event.clientX - tabDrag.startX) < 4) {
+                return;
+              }
+
+              tabDrag.hasMoved = true;
+              ignoreTabClickRef.current = true;
+              setDraggedTabId(tabDrag.id);
+              updateTabDropTarget(tabDrag.id, event.clientX, event.clientY);
+            }}
+            onPointerUp={(event) => {
+              const tabDrag = tabDragRef.current;
+              if (!tabDrag || tabDrag.pointerId !== event.pointerId) return;
+              if (tabDrag.hasMoved && tabDropTargetRef.current) {
+                reorderTabs(
+                  tabDrag.id,
+                  tabDropTargetRef.current.tabId,
+                  tabDropTargetRef.current.position,
+                );
+              }
+              if (tabDrag.hasMoved) {
+                window.setTimeout(() => {
+                  ignoreTabClickRef.current = false;
+                }, 0);
+              }
+              tabDragRef.current = null;
+              tabDropTargetRef.current = null;
+              setDraggedTabId(null);
+              setTabDropTarget(null);
+            }}
+            onPointerCancel={() => {
+              tabDragRef.current = null;
+              tabDropTargetRef.current = null;
+              setDraggedTabId(null);
+              setTabDropTarget(null);
+            }}
+            onClick={(event) => {
+              if (
+                event.target instanceof HTMLElement &&
+                event.target.closest(".tab-close")
+              ) {
+                return;
+              }
+              if (ignoreTabClickRef.current) {
+                ignoreTabClickRef.current = false;
+                return;
+              }
+              setActiveTabId(tab.id);
+            }}
             onContextMenu={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -1068,7 +1205,6 @@ function App() {
             <button
               className="tab-select"
               type="button"
-              onClick={() => setActiveTabId(tab.id)}
               title={tab.filePath ?? tab.name}
             >
               {tab.dirty && <span className="dirty-dot" aria-label="Unsaved">●</span>}
