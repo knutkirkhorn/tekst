@@ -1,5 +1,6 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { join } from "@tauri-apps/api/path";
+import { listen } from "@tauri-apps/api/event";
 import {
   getCurrentWebview,
   type DragDropEvent,
@@ -461,7 +462,7 @@ function App() {
         setIsQuickOpenOpen(false);
         return;
       }
-      if (!event.ctrlKey) return;
+      if (!event.ctrlKey && !event.metaKey) return;
 
       const key = event.key.toLowerCase();
       if (key === "p") {
@@ -489,6 +490,28 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [activeTab, closeTabs, createNewFile, openFiles, saveTab]);
+
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void listen("close-tab", () => {
+      if (activeTab) closeTabs([activeTab.id]);
+    }).then((stopListening) => {
+      if (disposed) {
+        stopListening();
+      } else {
+        unlisten = stopListening;
+      }
+    });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [activeTab, closeTabs]);
 
   useEffect(() => {
     if (!tabContextMenu) return;
