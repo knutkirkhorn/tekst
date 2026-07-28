@@ -1,14 +1,14 @@
-import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
-import { join } from "@tauri-apps/api/path";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWebview, type DragDropEvent } from "@tauri-apps/api/webview";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readDir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FileTree, { type FileTreeNode } from "./components/FileTree";
-import QuickOpen, { type RecentFile } from "./components/QuickOpen";
-import "./App.css";
+import Editor, {type Monaco, type OnMount} from '@monaco-editor/react';
+import {listen} from '@tauri-apps/api/event';
+import {join} from '@tauri-apps/api/path';
+import {getCurrentWebview, type DragDropEvent} from '@tauri-apps/api/webview';
+import {getCurrentWindow} from '@tauri-apps/api/window';
+import {open, save} from '@tauri-apps/plugin-dialog';
+import {readDir, readTextFile, writeTextFile} from '@tauri-apps/plugin-fs';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import FileTree, {type FileTreeNode} from './components/FileTree';
+import QuickOpen, {type RecentFile} from './components/QuickOpen';
+import './App.css';
 
 type EditorTab = {
 	id: string;
@@ -28,7 +28,7 @@ type TabContextMenu = {
 
 type TabDropTarget = {
 	tabId: string;
-	position: "before" | "after";
+	position: 'before' | 'after';
 };
 
 type TabDrag = {
@@ -38,7 +38,7 @@ type TabDrag = {
 	hasMoved: boolean;
 };
 
-const APP_MENUS = ["file", "view"] as const;
+const APP_MENUS = ['file', 'view'] as const;
 
 type AppMenu = (typeof APP_MENUS)[number];
 
@@ -55,51 +55,51 @@ type PendingTabClose = {
 type EditorInstance = Parameters<OnMount>[0];
 
 const LANGUAGE_BY_EXTENSION: Record<string, string> = {
-	c: "c",
-	cc: "cpp",
-	cpp: "cpp",
-	cs: "csharp",
-	css: "css",
-	go: "go",
-	h: "c",
-	hpp: "cpp",
-	html: "html",
-	java: "java",
-	js: "javascript",
-	json: "json",
-	jsx: "javascript",
-	md: "markdown",
-	py: "python",
-	rs: "rust",
-	sh: "shell",
-	sql: "sql",
-	ts: "typescript",
-	tsx: "typescript",
-	xml: "xml",
-	yaml: "yaml",
-	yml: "yaml",
+	c: 'c',
+	cc: 'cpp',
+	cpp: 'cpp',
+	cs: 'csharp',
+	css: 'css',
+	go: 'go',
+	h: 'c',
+	hpp: 'cpp',
+	html: 'html',
+	java: 'java',
+	js: 'javascript',
+	json: 'json',
+	jsx: 'javascript',
+	md: 'markdown',
+	py: 'python',
+	rs: 'rust',
+	sh: 'shell',
+	sql: 'sql',
+	ts: 'typescript',
+	tsx: 'typescript',
+	xml: 'xml',
+	yaml: 'yaml',
+	yml: 'yaml',
 };
 
-const EMPTY_DOCUMENT = "";
+const EMPTY_DOCUMENT = '';
 
 function fileNameFromPath(path: string) {
-	return path.split(/[\\/]/).pop() || "Untitled";
+	return path.split(/[\\/]/).pop() || 'Untitled';
 }
 
 function languageFromPath(path: string) {
-	const extension = path.split(".").pop()?.toLowerCase() ?? "";
-	return LANGUAGE_BY_EXTENSION[extension] ?? "plaintext";
+	const extension = path.split('.').pop()?.toLowerCase() ?? '';
+	return LANGUAGE_BY_EXTENSION[extension] ?? 'plaintext';
 }
 
 function createUntitledTab(sequence: number): EditorTab {
-	const name = sequence === 1 ? "Untitled" : `Untitled ${sequence}`;
+	const name = sequence === 1 ? 'Untitled' : `Untitled ${sequence}`;
 	return {
 		id: crypto.randomUUID(),
 		modelPath: `inmemory://tekst/${crypto.randomUUID()}.txt`,
 		filePath: null,
 		name,
 		initialContent: EMPTY_DOCUMENT,
-		language: "plaintext",
+		language: 'plaintext',
 		dirty: false,
 	};
 }
@@ -107,9 +107,9 @@ function createUntitledTab(sequence: number): EditorTab {
 function nextUntitledSequence(tabs: EditorTab[]) {
 	const usedSequences = new Set(
 		tabs
-			.filter((tab) => tab.filePath === null)
-			.map((tab) => {
-				if (tab.name === "Untitled") return 1;
+			.filter(tab => tab.filePath === null)
+			.map(tab => {
+				if (tab.name === 'Untitled') return 1;
 				const match = /^Untitled (\d+)$/.exec(tab.name);
 				return match ? Number(match[1]) : 0;
 			}),
@@ -123,7 +123,7 @@ function nextUntitledSequence(tabs: EditorTab[]) {
 async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
 	const entries = await readDir(path);
 	const nodes = await Promise.all(
-		entries.map(async (entry) => ({
+		entries.map(async entry => ({
 			path: await join(path, entry.name),
 			name: entry.name,
 			isDirectory: entry.isDirectory,
@@ -136,7 +136,7 @@ async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
 	return nodes.sort(
 		(left, right) =>
 			Number(right.isDirectory) - Number(left.isDirectory) ||
-			left.name.localeCompare(right.name, undefined, { sensitivity: "base" }),
+			left.name.localeCompare(right.name, undefined, {sensitivity: 'base'}),
 	);
 }
 
@@ -159,10 +159,10 @@ function updateTreeNode(
 	path: string,
 	update: (node: FileTreeNode) => FileTreeNode,
 ): FileTreeNode[] {
-	return nodes.map((node) => {
+	return nodes.map(node => {
 		if (node.path === path) return update(node);
 		if (!node.children) return node;
-		return { ...node, children: updateTreeNode(node.children, path, update) };
+		return {...node, children: updateTreeNode(node.children, path, update)};
 	});
 }
 
@@ -170,8 +170,8 @@ function App() {
 	const initialTab = useMemo(() => createUntitledTab(1), []);
 	const [tabs, setTabs] = useState<EditorTab[]>([initialTab]);
 	const [activeTabId, setActiveTabId] = useState(initialTab.id);
-	const [status, setStatus] = useState("Ready");
-	const [cursor, setCursor] = useState({ line: 1, column: 1 });
+	const [status, setStatus] = useState('Ready');
+	const [cursor, setCursor] = useState({line: 1, column: 1});
 	const [isDraggingFiles, setIsDraggingFiles] = useState(false);
 	const [tabContextMenu, setTabContextMenu] = useState<TabContextMenu | null>(
 		null,
@@ -199,28 +199,28 @@ function App() {
 	const tabDropTargetRef = useRef<TabDropTarget | null>(null);
 	const ignoreTabClickRef = useRef(false);
 
-	const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
 
 	const setTabDirty = useCallback((id: string) => {
-		setTabs((currentTabs) =>
-			currentTabs.map((tab) =>
-				tab.id === id && !tab.dirty ? { ...tab, dirty: true } : tab,
+		setTabs(currentTabs =>
+			currentTabs.map(tab =>
+				tab.id === id && !tab.dirty ? {...tab, dirty: true} : tab,
 			),
 		);
 	}, []);
 
 	const createNewFile = useCallback(() => {
 		const tab = createUntitledTab(nextUntitledSequence(tabs));
-		setTabs((currentTabs) => [...currentTabs, tab]);
+		setTabs(currentTabs => [...currentTabs, tab]);
 		setActiveTabId(tab.id);
-		setStatus("New file");
+		setStatus('New file');
 	}, [tabs]);
 
 	const rememberRecentFile = useCallback((path: string) => {
-		setRecentFiles((files) =>
+		setRecentFiles(files =>
 			[
-				{ path, name: fileNameFromPath(path) },
-				...files.filter((file) => file.path !== path),
+				{path, name: fileNameFromPath(path)},
+				...files.filter(file => file.path !== path),
 			].slice(0, 30),
 		);
 	}, []);
@@ -230,8 +230,8 @@ function App() {
 			try {
 				const existingPath = new Map(
 					tabs
-						.filter((tab) => tab.filePath)
-						.map((tab) => [tab.filePath as string, tab.id]),
+						.filter(tab => tab.filePath)
+						.map(tab => [tab.filePath as string, tab.id]),
 				);
 				const newTabs: EditorTab[] = [];
 
@@ -246,7 +246,7 @@ function App() {
 					const content = await readTextFile(filePath);
 					const tab: EditorTab = {
 						id: crypto.randomUUID(),
-						modelPath: `file://${filePath.replace(/\\/g, "/")}`,
+						modelPath: `file://${filePath.replace(/\\/g, '/')}`,
 						filePath,
 						name: fileNameFromPath(filePath),
 						initialContent: content,
@@ -259,7 +259,7 @@ function App() {
 				}
 
 				if (newTabs.length > 0) {
-					setTabs((currentTabs) => {
+					setTabs(currentTabs => {
 						const canReplaceEmpty =
 							currentTabs.length === 1 &&
 							currentTabs[0].filePath === null &&
@@ -270,7 +270,7 @@ function App() {
 					setActiveTabId(newTabs[newTabs.length - 1].id);
 				}
 				setStatus(
-					`${paths.length} file${paths.length === 1 ? "" : "s"} opened`,
+					`${paths.length} file${paths.length === 1 ? '' : 's'} opened`,
 				);
 			} catch (error) {
 				setStatus(`Open failed: ${String(error)}`);
@@ -284,7 +284,7 @@ function App() {
 			const selected = await open({
 				multiple: true,
 				directory: false,
-				title: "Open files",
+				title: 'Open files',
 			});
 
 			if (!selected) return;
@@ -318,9 +318,9 @@ function App() {
 			const selected = await open({
 				multiple: false,
 				directory: true,
-				title: "Open folder",
+				title: 'Open folder',
 			});
-			if (typeof selected !== "string") return;
+			if (typeof selected !== 'string') return;
 			await loadDirectory(selected);
 		} catch (error) {
 			setStatus(`Open folder failed: ${String(error)}`);
@@ -330,23 +330,21 @@ function App() {
 	const openDroppedPaths = useCallback(
 		async (paths: string[]) => {
 			try {
-				setStatus("Opening dropped items…");
+				setStatus('Opening dropped items…');
 				const classifiedPaths = await Promise.all(
-					paths.map(async (path) => {
+					paths.map(async path => {
 						try {
 							await readDir(path);
-							return { path, isDirectory: true };
+							return {path, isDirectory: true};
 						} catch {
-							return { path, isDirectory: false };
+							return {path, isDirectory: false};
 						}
 					}),
 				);
-				const directories = classifiedPaths.filter(
-					(entry) => entry.isDirectory,
-				);
+				const directories = classifiedPaths.filter(entry => entry.isDirectory);
 				const files = classifiedPaths
-					.filter((entry) => !entry.isDirectory)
-					.map((entry) => entry.path);
+					.filter(entry => !entry.isDirectory)
+					.map(entry => entry.path);
 
 				if (directories.length > 0) {
 					await loadDirectory(directories[0].path);
@@ -368,11 +366,11 @@ function App() {
 			if (!node?.isDirectory || node.isLoading) return;
 
 			if (node.children !== null) {
-				setDirectoryRoot((root) =>
+				setDirectoryRoot(root =>
 					root?.children
 						? {
 								...root,
-								children: updateTreeNode(root.children, path, (current) => ({
+								children: updateTreeNode(root.children, path, current => ({
 									...current,
 									isExpanded: !current.isExpanded,
 								})),
@@ -382,11 +380,11 @@ function App() {
 				return;
 			}
 
-			setDirectoryRoot((root) =>
+			setDirectoryRoot(root =>
 				root?.children
 					? {
 							...root,
-							children: updateTreeNode(root.children, path, (current) => ({
+							children: updateTreeNode(root.children, path, current => ({
 								...current,
 								isLoading: true,
 							})),
@@ -396,11 +394,11 @@ function App() {
 
 			try {
 				const children = await readDirectoryNodes(path);
-				setDirectoryRoot((root) =>
+				setDirectoryRoot(root =>
 					root?.children
 						? {
 								...root,
-								children: updateTreeNode(root.children, path, (current) => ({
+								children: updateTreeNode(root.children, path, current => ({
 									...current,
 									isExpanded: true,
 									isLoading: false,
@@ -410,11 +408,11 @@ function App() {
 						: root,
 				);
 			} catch (error) {
-				setDirectoryRoot((root) =>
+				setDirectoryRoot(root =>
 					root?.children
 						? {
 								...root,
-								children: updateTreeNode(root.children, path, (current) => ({
+								children: updateTreeNode(root.children, path, current => ({
 									...current,
 									isLoading: false,
 								})),
@@ -440,7 +438,7 @@ function App() {
 				let targetPath = tab.filePath;
 				if (!targetPath || saveAs) {
 					targetPath = await save({
-						title: "Save file",
+						title: 'Save file',
 						defaultPath: tab.filePath ?? tab.name,
 					});
 				}
@@ -448,8 +446,8 @@ function App() {
 
 				await writeTextFile(targetPath, getTabContent(tab));
 				const newName = fileNameFromPath(targetPath);
-				setTabs((currentTabs) =>
-					currentTabs.map((currentTab) =>
+				setTabs(currentTabs =>
+					currentTabs.map(currentTab =>
 						currentTab.id === tab.id
 							? {
 									...currentTab,
@@ -472,11 +470,11 @@ function App() {
 	const performCloseTabs = useCallback(
 		(ids: string[]) => {
 			const idSet = new Set(ids);
-			const tabsToClose = tabs.filter((tab) => idSet.has(tab.id));
+			const tabsToClose = tabs.filter(tab => idSet.has(tab.id));
 			if (tabsToClose.length === 0) return;
 
-			const firstClosedIndex = tabs.findIndex((tab) => idSet.has(tab.id));
-			const remainingTabs = tabs.filter((tab) => !idSet.has(tab.id));
+			const firstClosedIndex = tabs.findIndex(tab => idSet.has(tab.id));
+			const remainingTabs = tabs.filter(tab => !idSet.has(tab.id));
 
 			for (const tab of tabsToClose) {
 				monacoRef.current?.editor
@@ -501,7 +499,7 @@ function App() {
 
 			setTabContextMenu(null);
 			setStatus(
-				`Closed ${tabsToClose.length} file${tabsToClose.length === 1 ? "" : "s"}`,
+				`Closed ${tabsToClose.length} file${tabsToClose.length === 1 ? '' : 's'}`,
 			);
 		},
 		[activeTabId, tabs],
@@ -509,8 +507,8 @@ function App() {
 
 	const closeTabs = useCallback(
 		(ids: string[]) => {
-			const tabsToClose = tabs.filter((tab) => ids.includes(tab.id));
-			const dirtyTabs = tabsToClose.filter((tab) => tab.dirty);
+			const tabsToClose = tabs.filter(tab => ids.includes(tab.id));
+			const dirtyTabs = tabsToClose.filter(tab => tab.dirty);
 
 			if (dirtyTabs.length > 0) {
 				setPendingTabClose({
@@ -532,14 +530,14 @@ function App() {
 		requestAnimationFrame(() => {
 			const items = Array.from(
 				appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
-					"button:not(:disabled)",
+					'button:not(:disabled)',
 				) ?? [],
 			);
 			if (items.length === 0) return;
 
 			const selectedIndex =
 				((index % items.length) + items.length) % items.length;
-			setSelectedAppMenuItem({ menu, index: selectedIndex });
+			setSelectedAppMenuItem({menu, index: selectedIndex});
 			items[selectedIndex].focus();
 		});
 	}, []);
@@ -548,7 +546,7 @@ function App() {
 		(menu: AppMenu, direction: 1 | -1) => {
 			const items = Array.from(
 				appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
-					"button:not(:disabled)",
+					'button:not(:disabled)',
 				) ?? [],
 			);
 			const selectedIndex =
@@ -582,7 +580,7 @@ function App() {
 
 	const selectAdjacentTab = useCallback(
 		(direction: 1 | -1) => {
-			const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+			const currentIndex = tabs.findIndex(tab => tab.id === activeTabId);
 			const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
 			setActiveTabId(tabs[nextIndex].id);
 		},
@@ -593,21 +591,19 @@ function App() {
 		(
 			sourceId: string,
 			targetId: string,
-			position: TabDropTarget["position"],
+			position: TabDropTarget['position'],
 		) => {
 			if (sourceId === targetId) return;
 
-			setTabs((currentTabs) => {
-				const sourceTab = currentTabs.find((tab) => tab.id === sourceId);
+			setTabs(currentTabs => {
+				const sourceTab = currentTabs.find(tab => tab.id === sourceId);
 				if (!sourceTab) return currentTabs;
 
-				const remainingTabs = currentTabs.filter((tab) => tab.id !== sourceId);
-				const targetIndex = remainingTabs.findIndex(
-					(tab) => tab.id === targetId,
-				);
+				const remainingTabs = currentTabs.filter(tab => tab.id !== sourceId);
+				const targetIndex = remainingTabs.findIndex(tab => tab.id === targetId);
 				if (targetIndex === -1) return currentTabs;
 
-				const insertionIndex = targetIndex + (position === "after" ? 1 : 0);
+				const insertionIndex = targetIndex + (position === 'after' ? 1 : 0);
 				return [
 					...remainingTabs.slice(0, insertionIndex),
 					sourceTab,
@@ -622,7 +618,7 @@ function App() {
 		(sourceId: string, clientX: number, clientY: number) => {
 			const target = document
 				.elementFromPoint(clientX, clientY)
-				?.closest<HTMLDivElement>(".tab[data-tab-id]");
+				?.closest<HTMLDivElement>('.tab[data-tab-id]');
 			if (!target || target.dataset.tabId === sourceId) {
 				tabDropTargetRef.current = null;
 				setTabDropTarget(null);
@@ -632,7 +628,7 @@ function App() {
 			const bounds = target.getBoundingClientRect();
 			const dropTarget: TabDropTarget = {
 				tabId: target.dataset.tabId as string,
-				position: clientX < bounds.left + bounds.width / 2 ? "before" : "after",
+				position: clientX < bounds.left + bounds.width / 2 ? 'before' : 'after',
 			};
 			tabDropTargetRef.current = dropTarget;
 			setTabDropTarget(dropTarget);
@@ -643,35 +639,35 @@ function App() {
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (openAppMenu) {
-				if (event.key === "ArrowDown") {
+				if (event.key === 'ArrowDown') {
 					event.preventDefault();
 					moveAppMenuFocus(openAppMenu, 1);
 					return;
 				}
-				if (event.key === "ArrowUp") {
+				if (event.key === 'ArrowUp') {
 					event.preventDefault();
 					moveAppMenuFocus(openAppMenu, -1);
 					return;
 				}
-				if (event.key === "ArrowRight") {
+				if (event.key === 'ArrowRight') {
 					event.preventDefault();
 					switchAppMenu(openAppMenu, 1);
 					return;
 				}
-				if (event.key === "ArrowLeft") {
+				if (event.key === 'ArrowLeft') {
 					event.preventDefault();
 					switchAppMenu(openAppMenu, -1);
 					return;
 				}
 			}
-			if (event.key === "Escape") {
+			if (event.key === 'Escape') {
 				setTabContextMenu(null);
 				setOpenAppMenu(null);
 				setSelectedAppMenuItem(null);
 				setIsQuickOpenOpen(false);
 				return;
 			}
-			if (event.ctrlKey && event.key === "Tab") {
+			if (event.ctrlKey && event.key === 'Tab') {
 				event.preventDefault();
 				selectAdjacentTab(event.shiftKey ? -1 : 1);
 				return;
@@ -679,32 +675,32 @@ function App() {
 			if (!event.ctrlKey && !event.metaKey) return;
 
 			const key = event.key.toLowerCase();
-			if (key === "r" && event.ctrlKey) {
+			if (key === 'r' && event.ctrlKey) {
 				event.preventDefault();
-			} else if (key === "p") {
+			} else if (key === 'p') {
 				event.preventDefault();
 				setTabContextMenu(null);
-				setIsQuickOpenOpen((isOpen) => !isOpen);
-			} else if (key === "b") {
+				setIsQuickOpenOpen(isOpen => !isOpen);
+			} else if (key === 'b') {
 				event.preventDefault();
-				setIsSidebarOpen((isOpen) => !isOpen);
-			} else if (key === "n") {
+				setIsSidebarOpen(isOpen => !isOpen);
+			} else if (key === 'n') {
 				event.preventDefault();
 				createNewFile();
-			} else if (key === "o") {
+			} else if (key === 'o') {
 				event.preventDefault();
 				void openFiles();
-			} else if (key === "s" && activeTab) {
+			} else if (key === 's' && activeTab) {
 				event.preventDefault();
 				void saveTab(activeTab, event.shiftKey);
-			} else if (key === "w" && activeTab) {
+			} else if (key === 'w' && activeTab) {
 				event.preventDefault();
 				closeTabs([activeTab.id]);
 			}
 		};
 
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
 	}, [
 		activeTab,
 		closeTabs,
@@ -718,14 +714,14 @@ function App() {
 	]);
 
 	useEffect(() => {
-		if (!("__TAURI_INTERNALS__" in window)) return;
+		if (!('__TAURI_INTERNALS__' in window)) return;
 
 		let disposed = false;
 		let unlisten: (() => void) | undefined;
 
-		void listen("close-tab", () => {
+		void listen('close-tab', () => {
 			if (activeTab) closeTabs([activeTab.id]);
-		}).then((stopListening) => {
+		}).then(stopListening => {
 			if (disposed) {
 				stopListening();
 			} else {
@@ -743,15 +739,15 @@ function App() {
 		if (!tabContextMenu) return;
 
 		const dismissMenu = () => setTabContextMenu(null);
-		window.addEventListener("pointerdown", dismissMenu);
-		window.addEventListener("blur", dismissMenu);
-		window.addEventListener("resize", dismissMenu);
-		window.addEventListener("scroll", dismissMenu, true);
+		window.addEventListener('pointerdown', dismissMenu);
+		window.addEventListener('blur', dismissMenu);
+		window.addEventListener('resize', dismissMenu);
+		window.addEventListener('scroll', dismissMenu, true);
 		return () => {
-			window.removeEventListener("pointerdown", dismissMenu);
-			window.removeEventListener("blur", dismissMenu);
-			window.removeEventListener("resize", dismissMenu);
-			window.removeEventListener("scroll", dismissMenu, true);
+			window.removeEventListener('pointerdown', dismissMenu);
+			window.removeEventListener('blur', dismissMenu);
+			window.removeEventListener('resize', dismissMenu);
+			window.removeEventListener('scroll', dismissMenu, true);
 		};
 	}, [tabContextMenu]);
 
@@ -762,75 +758,78 @@ function App() {
 			setOpenAppMenu(null);
 			setSelectedAppMenuItem(null);
 		};
-		window.addEventListener("pointerdown", dismissMenu);
-		window.addEventListener("blur", dismissMenu);
-		window.addEventListener("resize", dismissMenu);
+		window.addEventListener('pointerdown', dismissMenu);
+		window.addEventListener('blur', dismissMenu);
+		window.addEventListener('resize', dismissMenu);
 		return () => {
-			window.removeEventListener("pointerdown", dismissMenu);
-			window.removeEventListener("blur", dismissMenu);
-			window.removeEventListener("resize", dismissMenu);
+			window.removeEventListener('pointerdown', dismissMenu);
+			window.removeEventListener('blur', dismissMenu);
+			window.removeEventListener('resize', dismissMenu);
 		};
 	}, [openAppMenu]);
 
 	useEffect(() => {
 		const title = activeTab
-			? `${activeTab.dirty ? "● " : ""}${activeTab.name} — tekst`
-			: "tekst";
+			? `${activeTab.dirty ? '● ' : ''}${activeTab.name} — tekst`
+			: 'tekst';
 		document.title = title;
-		if ("__TAURI_INTERNALS__" in window) {
+		if ('__TAURI_INTERNALS__' in window) {
 			void getCurrentWindow().setTitle(title);
 		}
 	}, [activeTab]);
 
 	useEffect(() => {
 		const warnBeforeClose = (event: BeforeUnloadEvent) => {
-			if (tabs.some((tab) => tab.dirty)) {
+			if (tabs.some(tab => tab.dirty)) {
 				event.preventDefault();
 			}
 		};
-		window.addEventListener("beforeunload", warnBeforeClose);
-		return () => window.removeEventListener("beforeunload", warnBeforeClose);
+		window.addEventListener('beforeunload', warnBeforeClose);
+		return () => window.removeEventListener('beforeunload', warnBeforeClose);
 	}, [tabs]);
 
 	useEffect(() => {
-		if (!("__TAURI_INTERNALS__" in window)) return;
+		if (!('__TAURI_INTERNALS__' in window)) return;
 
-		let disposed = false;
+		let isDisposed = false;
 		let unlisten: (() => void) | undefined;
 
 		void getCurrentWebview()
-			.onDragDropEvent(({ payload }: { payload: DragDropEvent }) => {
+			.onDragDropEvent(({payload}: {payload: DragDropEvent}) => {
 				switch (payload.type) {
-					case "enter":
-					case "over":
+					case 'enter':
+					case 'over': {
 						setIsDraggingFiles(true);
 						break;
-					case "drop":
+					}
+					case 'drop': {
 						setIsDraggingFiles(false);
 						void openDroppedPaths(payload.paths);
 						break;
-					case "leave":
+					}
+					case 'leave': {
 						setIsDraggingFiles(false);
 						break;
+					}
 					default: {
 						const exhaustiveCheck: never = payload;
 						return exhaustiveCheck;
 					}
 				}
 			})
-			.then((stopListening) => {
-				if (disposed) {
+			.then(stopListening => {
+				if (isDisposed) {
 					stopListening();
 				} else {
 					unlisten = stopListening;
 				}
 			})
-			.catch((error) => {
+			.catch(error => {
 				setStatus(`Drag and drop unavailable: ${String(error)}`);
 			});
 
 		return () => {
-			disposed = true;
+			isDisposed = true;
 			unlisten?.();
 		};
 	}, [openDroppedPaths]);
@@ -839,8 +838,8 @@ function App() {
 		editorRef.current = editor;
 		monacoRef.current = monaco;
 		editor.focus();
-		editor.onDidChangeCursorPosition(({ position }) => {
-			setCursor({ line: position.lineNumber, column: position.column });
+		editor.onDidChangeCursorPosition(({position}) => {
+			setCursor({line: position.lineNumber, column: position.column});
 		});
 	};
 
@@ -855,7 +854,7 @@ function App() {
 				isOpen={isQuickOpenOpen}
 				recentFiles={recentFiles}
 				onClose={() => setIsQuickOpenOpen(false)}
-				onSelect={(path) => void openPaths([path])}
+				onSelect={path => void openPaths([path])}
 			/>
 			{pendingTabClose && (
 				<div className="confirm-dialog-backdrop" role="presentation">
@@ -895,40 +894,40 @@ function App() {
 						<button
 							className="app-menu-trigger"
 							type="button"
-							aria-expanded={openAppMenu === "file"}
+							aria-expanded={openAppMenu === 'file'}
 							aria-haspopup="menu"
-							onPointerDown={(event) => event.stopPropagation()}
+							onPointerDown={event => event.stopPropagation()}
 							onClick={() => {
-								const isOpen = openAppMenu === "file";
-								setOpenAppMenu(isOpen ? null : "file");
+								const isOpen = openAppMenu === 'file';
+								setOpenAppMenu(isOpen ? null : 'file');
 								setSelectedAppMenuItem(
-									isOpen ? null : { menu: "file", index: 0 },
+									isOpen ? null : {menu: 'file', index: 0},
 								);
 							}}
 						>
 							File
 						</button>
-						{openAppMenu === "file" && (
+						{openAppMenu === 'file' && (
 							<div
 								className="app-menu-dropdown"
 								role="menu"
 								aria-label="File"
-								ref={(menu) => {
+								ref={menu => {
 									appMenuRefs.current.file = menu;
 								}}
-								onPointerDown={(event) => event.stopPropagation()}
+								onPointerDown={event => event.stopPropagation()}
 							>
 								<button
 									type="button"
 									role="menuitem"
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 0
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 0 })
+										setSelectedAppMenuItem({menu: 'file', index: 0})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -942,13 +941,13 @@ function App() {
 									type="button"
 									role="menuitem"
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 1
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 1 })
+										setSelectedAppMenuItem({menu: 'file', index: 1})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -962,13 +961,13 @@ function App() {
 									type="button"
 									role="menuitem"
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 2
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 2 })
+										setSelectedAppMenuItem({menu: 'file', index: 2})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -983,13 +982,13 @@ function App() {
 									role="menuitem"
 									disabled={!activeTab}
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 3
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 3 })
+										setSelectedAppMenuItem({menu: 'file', index: 3})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -1004,13 +1003,13 @@ function App() {
 									role="menuitem"
 									disabled={!activeTab}
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 4
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 4 })
+										setSelectedAppMenuItem({menu: 'file', index: 4})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -1026,13 +1025,13 @@ function App() {
 									role="menuitem"
 									disabled={!activeTab}
 									className={
-										selectedAppMenuItem?.menu === "file" &&
+										selectedAppMenuItem?.menu === 'file' &&
 										selectedAppMenuItem.index === 5
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "file", index: 5 })
+										setSelectedAppMenuItem({menu: 'file', index: 5})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -1050,60 +1049,60 @@ function App() {
 						<button
 							className="app-menu-trigger"
 							type="button"
-							aria-expanded={openAppMenu === "view"}
+							aria-expanded={openAppMenu === 'view'}
 							aria-haspopup="menu"
-							onPointerDown={(event) => event.stopPropagation()}
+							onPointerDown={event => event.stopPropagation()}
 							onClick={() => {
-								const isOpen = openAppMenu === "view";
-								setOpenAppMenu(isOpen ? null : "view");
+								const isOpen = openAppMenu === 'view';
+								setOpenAppMenu(isOpen ? null : 'view');
 								setSelectedAppMenuItem(
-									isOpen ? null : { menu: "view", index: 0 },
+									isOpen ? null : {menu: 'view', index: 0},
 								);
 							}}
 						>
 							View
 						</button>
-						{openAppMenu === "view" && (
+						{openAppMenu === 'view' && (
 							<div
 								className="app-menu-dropdown"
 								role="menu"
 								aria-label="View"
-								ref={(menu) => {
+								ref={menu => {
 									appMenuRefs.current.view = menu;
 								}}
-								onPointerDown={(event) => event.stopPropagation()}
+								onPointerDown={event => event.stopPropagation()}
 							>
 								<button
 									type="button"
 									role="menuitem"
 									className={
-										selectedAppMenuItem?.menu === "view" &&
+										selectedAppMenuItem?.menu === 'view' &&
 										selectedAppMenuItem.index === 0
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "view", index: 0 })
+										setSelectedAppMenuItem({menu: 'view', index: 0})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
-										setIsSidebarOpen((isOpen) => !isOpen);
+										setIsSidebarOpen(isOpen => !isOpen);
 									}}
 								>
-									<span>{isSidebarOpen ? "Hide sidebar" : "Show sidebar"}</span>
+									<span>{isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}</span>
 									<kbd>Ctrl/⌘ B</kbd>
 								</button>
 								<button
 									type="button"
 									role="menuitem"
 									className={
-										selectedAppMenuItem?.menu === "view" &&
+										selectedAppMenuItem?.menu === 'view' &&
 										selectedAppMenuItem.index === 1
-											? "selected"
+											? 'selected'
 											: undefined
 									}
 									onMouseEnter={() =>
-										setSelectedAppMenuItem({ menu: "view", index: 1 })
+										setSelectedAppMenuItem({menu: 'view', index: 1})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
@@ -1124,7 +1123,7 @@ function App() {
 					<aside className="sidebar" aria-label="File explorer">
 						<div className="sidebar-header">
 							<span title={directoryRoot?.path}>
-								{directoryRoot?.name ?? "Explorer"}
+								{directoryRoot?.name ?? 'Explorer'}
 							</span>
 							<button
 								type="button"
@@ -1138,8 +1137,8 @@ function App() {
 						{directoryRoot?.children ? (
 							<FileTree
 								nodes={directoryRoot.children}
-								onOpenFile={(path) => void openPaths([path])}
-								onToggleDirectory={(path) => void toggleDirectory(path)}
+								onOpenFile={path => void openPaths([path])}
+								onToggleDirectory={path => void toggleDirectory(path)}
 							/>
 						) : (
 							<div className="sidebar-empty">
@@ -1154,22 +1153,22 @@ function App() {
 
 				<div className="editor-workspace">
 					<nav className="tab-bar" aria-label="Open files">
-						{tabs.map((tab) => (
+						{tabs.map(tab => (
 							<div
-								className={`tab ${tab.id === activeTabId ? "active" : ""} ${
-									tab.id === draggedTabId ? "dragging" : ""
+								className={`tab ${tab.id === activeTabId ? 'active' : ''} ${
+									tab.id === draggedTabId ? 'dragging' : ''
 								} ${
 									tabDropTarget?.tabId === tab.id
 										? `drop-${tabDropTarget.position}`
-										: ""
+										: ''
 								}`}
 								key={tab.id}
 								data-tab-id={tab.id}
-								onPointerDown={(event) => {
+								onPointerDown={event => {
 									if (
 										event.button !== 0 ||
 										(event.target instanceof HTMLElement &&
-											event.target.closest(".tab-close"))
+											event.target.closest('.tab-close'))
 									) {
 										return;
 									}
@@ -1181,7 +1180,7 @@ function App() {
 										hasMoved: false,
 									};
 								}}
-								onPointerMove={(event) => {
+								onPointerMove={event => {
 									const tabDrag = tabDragRef.current;
 									if (!tabDrag || tabDrag.pointerId !== event.pointerId) return;
 									if (
@@ -1196,7 +1195,7 @@ function App() {
 									setDraggedTabId(tabDrag.id);
 									updateTabDropTarget(tabDrag.id, event.clientX, event.clientY);
 								}}
-								onPointerUp={(event) => {
+								onPointerUp={event => {
 									const tabDrag = tabDragRef.current;
 									if (!tabDrag || tabDrag.pointerId !== event.pointerId) return;
 									if (tabDrag.hasMoved && tabDropTargetRef.current) {
@@ -1222,10 +1221,10 @@ function App() {
 									setDraggedTabId(null);
 									setTabDropTarget(null);
 								}}
-								onClick={(event) => {
+								onClick={event => {
 									if (
 										event.target instanceof HTMLElement &&
-										event.target.closest(".tab-close")
+										event.target.closest('.tab-close')
 									) {
 										return;
 									}
@@ -1235,7 +1234,7 @@ function App() {
 									}
 									setActiveTabId(tab.id);
 								}}
-								onContextMenu={(event) => {
+								onContextMenu={event => {
 									event.preventDefault();
 									event.stopPropagation();
 									setActiveTabId(tab.id);
@@ -1291,8 +1290,8 @@ function App() {
 							className="tab-context-menu"
 							role="menu"
 							aria-label="Tab actions"
-							style={{ left: tabContextMenu.x, top: tabContextMenu.y }}
-							onPointerDown={(event) => event.stopPropagation()}
+							style={{left: tabContextMenu.x, top: tabContextMenu.y}}
+							onPointerDown={event => event.stopPropagation()}
 						>
 							<button
 								type="button"
@@ -1304,18 +1303,16 @@ function App() {
 							<button
 								type="button"
 								role="menuitem"
-								onClick={() => closeTabs(tabs.map((tab) => tab.id))}
+								onClick={() => closeTabs(tabs.map(tab => tab.id))}
 							>
 								Close all
 							</button>
 							<button
 								type="button"
 								role="menuitem"
-								disabled={!tabs.some((tab) => !tab.dirty)}
+								disabled={!tabs.some(tab => !tab.dirty)}
 								onClick={() =>
-									closeTabs(
-										tabs.filter((tab) => !tab.dirty).map((tab) => tab.id),
-									)
+									closeTabs(tabs.filter(tab => !tab.dirty).map(tab => tab.id))
 								}
 							>
 								Close saved
@@ -1327,8 +1324,8 @@ function App() {
 								onClick={() =>
 									closeTabs(
 										tabs
-											.filter((tab) => tab.id !== tabContextMenu.tabId)
-											.map((tab) => tab.id),
+											.filter(tab => tab.id !== tabContextMenu.tabId)
+											.map(tab => tab.id),
 									)
 								}
 							>
@@ -1348,46 +1345,46 @@ function App() {
 								saveViewState
 								onMount={handleEditorMount}
 								onChange={() => setTabDirty(activeTab.id)}
-								beforeMount={(monaco) => {
-									monaco.editor.defineTheme("tekst-dark", {
-										base: "vs-dark",
+								beforeMount={monaco => {
+									monaco.editor.defineTheme('tekst-dark', {
+										base: 'vs-dark',
 										inherit: true,
 										rules: [],
 										colors: {
-											"editor.background": "#111315",
-											"editorGutter.background": "#111315",
-											"editorLineNumber.foreground": "#555c64",
-											"editorLineNumber.activeForeground": "#c3c8ce",
-											"editor.lineHighlightBackground": "#171a1d",
+											'editor.background': '#111315',
+											'editorGutter.background': '#111315',
+											'editorLineNumber.foreground': '#555c64',
+											'editorLineNumber.activeForeground': '#c3c8ce',
+											'editor.lineHighlightBackground': '#171a1d',
 										},
 									});
 								}}
 								options={{
 									automaticLayout: true,
-									lineNumbers: "on",
+									lineNumbers: 'on',
 									lineNumbersMinChars: 3,
-									minimap: { enabled: false },
+									minimap: {enabled: false},
 									glyphMargin: false,
 									folding: false,
 									scrollBeyondLastLine: false,
 									smoothScrolling: false,
-									renderWhitespace: "selection",
-									renderLineHighlight: "line",
+									renderWhitespace: 'selection',
+									renderLineHighlight: 'line',
 									overviewRulerLanes: 0,
 									hideCursorInOverviewRuler: true,
-									wordWrap: "off",
+									wordWrap: 'off',
 									fontFamily:
 										"'Cascadia Code', 'Segoe UI Mono', Consolas, monospace",
 									fontSize: 14,
 									lineHeight: 22,
-									padding: { top: 10, bottom: 10 },
+									padding: {top: 10, bottom: 10},
 									tabSize: 2,
 									insertSpaces: true,
-									cursorBlinking: "smooth",
-									cursorSmoothCaretAnimation: "off",
-									bracketPairColorization: { enabled: false },
-									stickyScroll: { enabled: false },
-									guides: { indentation: false, bracketPairs: false },
+									cursorBlinking: 'smooth',
+									cursorSmoothCaretAnimation: 'off',
+									bracketPairColorization: {enabled: false},
+									stickyScroll: {enabled: false},
+									guides: {indentation: false, bracketPairs: false},
 									quickSuggestions: false,
 									suggestOnTriggerCharacters: false,
 								}}
@@ -1404,7 +1401,7 @@ function App() {
 				<span>
 					Ln {cursor.line}, Col {cursor.column}
 				</span>
-				<span>{activeTab?.language ?? "plaintext"}</span>
+				<span>{activeTab?.language ?? 'plaintext'}</span>
 				<span>UTF-8</span>
 			</footer>
 		</main>
