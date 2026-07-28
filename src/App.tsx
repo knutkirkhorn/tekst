@@ -133,7 +133,7 @@ async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
 		})),
 	);
 
-	return nodes.sort(
+	return nodes.toSorted(
 		(left, right) =>
 			Number(right.isDirectory) - Number(left.isDirectory) ||
 			left.name.localeCompare(right.name, undefined, {sensitivity: 'base'}),
@@ -246,7 +246,7 @@ function App() {
 					const content = await readTextFile(filePath);
 					const tab: EditorTab = {
 						id: crypto.randomUUID(),
-						modelPath: `file://${filePath.replace(/\\/g, '/')}`,
+						modelPath: `file://${filePath.replaceAll('\\', '/')}`,
 						filePath,
 						name: fileNameFromPath(filePath),
 						initialContent: content,
@@ -267,7 +267,7 @@ function App() {
 							currentTabs[0].initialContent === EMPTY_DOCUMENT;
 						return canReplaceEmpty ? newTabs : [...currentTabs, ...newTabs];
 					});
-					setActiveTabId(newTabs[newTabs.length - 1].id);
+					setActiveTabId(newTabs.at(-1).id);
 				}
 				setStatus(
 					`${paths.length} file${paths.length === 1 ? '' : 's'} opened`,
@@ -433,10 +433,10 @@ function App() {
 	}, []);
 
 	const saveTab = useCallback(
-		async (tab: EditorTab, saveAs = false) => {
+		async (tab: EditorTab, isSaveAs = false) => {
 			try {
 				let targetPath = tab.filePath;
-				if (!targetPath || saveAs) {
+				if (!targetPath || isSaveAs) {
 					targetPath = await save({
 						title: 'Save file',
 						defaultPath: tab.filePath ?? tab.name,
@@ -528,11 +528,11 @@ function App() {
 
 	const focusAppMenuItem = useCallback((menu: AppMenu, index: number) => {
 		requestAnimationFrame(() => {
-			const items = Array.from(
-				appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
+			const items = [
+				...(appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
 					'button:not(:disabled)',
-				) ?? [],
-			);
+				) ?? []),
+			];
 			if (items.length === 0) return;
 
 			const selectedIndex =
@@ -544,11 +544,11 @@ function App() {
 
 	const moveAppMenuFocus = useCallback(
 		(menu: AppMenu, direction: 1 | -1) => {
-			const items = Array.from(
-				appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
+			const items = [
+				...(appMenuRefs.current[menu]?.querySelectorAll<HTMLButtonElement>(
 					'button:not(:disabled)',
-				) ?? [],
-			);
+				) ?? []),
+			];
 			const selectedIndex =
 				selectedAppMenuItem?.menu === menu
 					? selectedAppMenuItem.index
@@ -677,30 +677,44 @@ function App() {
 			const key = event.key.toLowerCase();
 			if (key === 'r' && event.ctrlKey) {
 				event.preventDefault();
-			} else if (key === 'p') {
-				event.preventDefault();
-				setTabContextMenu(null);
-				setIsQuickOpenOpen(isOpen => !isOpen);
-			} else if (key === 'b') {
-				event.preventDefault();
-				setIsSidebarOpen(isOpen => !isOpen);
-			} else if (key === 'n') {
-				event.preventDefault();
-				createNewFile();
-			} else if (key === 'o') {
-				event.preventDefault();
-				void openFiles();
-			} else if (key === 's' && activeTab) {
-				event.preventDefault();
-				void saveTab(activeTab, event.shiftKey);
-			} else if (key === 'w' && activeTab) {
-				event.preventDefault();
-				closeTabs([activeTab.id]);
-			}
+			} else
+				switch (key) {
+					case 'p': {
+						event.preventDefault();
+						setTabContextMenu(null);
+						setIsQuickOpenOpen(isOpen => !isOpen);
+						break;
+					}
+					case 'b': {
+						event.preventDefault();
+						setIsSidebarOpen(isOpen => !isOpen);
+						break;
+					}
+					case 'n': {
+						event.preventDefault();
+						createNewFile();
+						break;
+					}
+					case 'o': {
+						event.preventDefault();
+						void openFiles();
+						break;
+					}
+					default: {
+						if (key === 's' && activeTab) {
+							event.preventDefault();
+							void saveTab(activeTab, event.shiftKey);
+						} else if (key === 'w' && activeTab) {
+							event.preventDefault();
+							closeTabs([activeTab.id]);
+						}
+						break;
+					}
+				}
 		};
 
-		window.addEventListener('keydown', handleKeyDown);
-		return () => window.removeEventListener('keydown', handleKeyDown);
+		globalThis.addEventListener('keydown', handleKeyDown);
+		return () => globalThis.removeEventListener('keydown', handleKeyDown);
 	}, [
 		activeTab,
 		closeTabs,
@@ -714,23 +728,24 @@ function App() {
 	]);
 
 	useEffect(() => {
-		if (!('__TAURI_INTERNALS__' in window)) return;
+		if (!('__TAURI_INTERNALS__' in globalThis)) return;
 
-		let disposed = false;
+		let isDisposed = false;
 		let unlisten: (() => void) | undefined;
 
 		void listen('close-tab', () => {
 			if (activeTab) closeTabs([activeTab.id]);
 		}).then(stopListening => {
-			if (disposed) {
+			if (isDisposed) {
 				stopListening();
 			} else {
 				unlisten = stopListening;
 			}
 		});
 
+		// eslint-disable-next-line consistent-return
 		return () => {
-			disposed = true;
+			isDisposed = true;
 			unlisten?.();
 		};
 	}, [activeTab, closeTabs]);
@@ -739,15 +754,16 @@ function App() {
 		if (!tabContextMenu) return;
 
 		const dismissMenu = () => setTabContextMenu(null);
-		window.addEventListener('pointerdown', dismissMenu);
+		globalThis.addEventListener('pointerdown', dismissMenu);
 		window.addEventListener('blur', dismissMenu);
 		window.addEventListener('resize', dismissMenu);
-		window.addEventListener('scroll', dismissMenu, true);
+		window.addEventListener('scroll', dismissMenu, {capture: true});
+		// eslint-disable-next-line consistent-return
 		return () => {
-			window.removeEventListener('pointerdown', dismissMenu);
+			globalThis.removeEventListener('pointerdown', dismissMenu);
 			window.removeEventListener('blur', dismissMenu);
 			window.removeEventListener('resize', dismissMenu);
-			window.removeEventListener('scroll', dismissMenu, true);
+			window.removeEventListener('scroll', dismissMenu, {capture: true});
 		};
 	}, [tabContextMenu]);
 
@@ -758,11 +774,12 @@ function App() {
 			setOpenAppMenu(null);
 			setSelectedAppMenuItem(null);
 		};
-		window.addEventListener('pointerdown', dismissMenu);
+		globalThis.addEventListener('pointerdown', dismissMenu);
 		window.addEventListener('blur', dismissMenu);
 		window.addEventListener('resize', dismissMenu);
+		// eslint-disable-next-line consistent-return
 		return () => {
-			window.removeEventListener('pointerdown', dismissMenu);
+			globalThis.removeEventListener('pointerdown', dismissMenu);
 			window.removeEventListener('blur', dismissMenu);
 			window.removeEventListener('resize', dismissMenu);
 		};
@@ -773,7 +790,7 @@ function App() {
 			? `${activeTab.dirty ? '● ' : ''}${activeTab.name} — tekst`
 			: 'tekst';
 		document.title = title;
-		if ('__TAURI_INTERNALS__' in window) {
+		if ('__TAURI_INTERNALS__' in globalThis) {
 			void getCurrentWindow().setTitle(title);
 		}
 	}, [activeTab]);
@@ -789,12 +806,13 @@ function App() {
 	}, [tabs]);
 
 	useEffect(() => {
-		if (!('__TAURI_INTERNALS__' in window)) return;
+		if (!('__TAURI_INTERNALS__' in globalThis)) return;
 
 		let isDisposed = false;
 		let unlisten: (() => void) | undefined;
 
 		void getCurrentWebview()
+			// eslint-disable-next-line consistent-return
 			.onDragDropEvent(({payload}: {payload: DragDropEvent}) => {
 				switch (payload.type) {
 					case 'enter':
@@ -828,6 +846,7 @@ function App() {
 				setStatus(`Drag and drop unavailable: ${String(error)}`);
 			});
 
+		// eslint-disable-next-line consistent-return
 		return () => {
 			isDisposed = true;
 			unlisten?.();
@@ -1206,7 +1225,7 @@ function App() {
 										);
 									}
 									if (tabDrag.hasMoved) {
-										window.setTimeout(() => {
+										setTimeout(() => {
 											ignoreTabClickRef.current = false;
 										}, 0);
 									}
@@ -1310,7 +1329,7 @@ function App() {
 							<button
 								type="button"
 								role="menuitem"
-								disabled={!tabs.some(tab => !tab.dirty)}
+								disabled={tabs.every(tab => tab.dirty)}
 								onClick={() =>
 									closeTabs(tabs.filter(tab => !tab.dirty).map(tab => tab.id))
 								}

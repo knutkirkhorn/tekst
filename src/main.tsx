@@ -26,14 +26,19 @@ type MonacoEnvironment = {
 	getWorker: (_moduleId: string, label: string) => Worker;
 };
 
-(
-	self as typeof self & {MonacoEnvironment: MonacoEnvironment}
-).MonacoEnvironment = {
+const monacoEnvironment: MonacoEnvironment = {
 	getWorker(_moduleId, label) {
 		if (label === 'json') return new jsonWorker();
 		return new editorWorker();
 	},
 };
+
+Object.defineProperty(globalThis, 'MonacoEnvironment', {
+	configurable: true,
+	enumerable: true,
+	value: monacoEnvironment,
+	writable: true,
+});
 
 // Keep Monaco fully local. The wrapper otherwise defaults to a public CDN.
 loader.config({monaco});
