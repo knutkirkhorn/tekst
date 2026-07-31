@@ -138,7 +138,9 @@ async function readDirectoryNodes(path: string): Promise<FileTreeNode[]> {
 		})),
 	);
 
-	return nodes.toSorted(
+	// Sorting this newly created local array in place avoids requiring ES2023.
+	// eslint-disable-next-line unicorn/no-array-sort
+	return nodes.sort(
 		(left, right) =>
 			Number(right.isDirectory) - Number(left.isDirectory) ||
 			left.name.localeCompare(right.name, undefined, {sensitivity: 'base'}),
@@ -281,7 +283,8 @@ function App() {
 							currentTabs[0].initialContent === EMPTY_DOCUMENT;
 						return canReplaceEmpty ? newTabs : [...currentTabs, ...newTabs];
 					});
-					setActiveTabId(newTabs.at(-1).id);
+					const lastNewTab = newTabs.at(-1);
+					if (lastNewTab) setActiveTabId(lastNewTab.id);
 				}
 				setStatus(
 					`${paths.length} file${paths.length === 1 ? '' : 's'} opened`,
