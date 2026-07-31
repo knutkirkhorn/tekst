@@ -1,4 +1,5 @@
 import Editor, {type Monaco, type OnMount} from '@monaco-editor/react';
+import {getVersion} from '@tauri-apps/api/app';
 import {listen} from '@tauri-apps/api/event';
 import {join} from '@tauri-apps/api/path';
 import {getCurrentWebview, type DragDropEvent} from '@tauri-apps/api/webview';
@@ -6,6 +7,7 @@ import {getCurrentWindow} from '@tauri-apps/api/window';
 import {open, save} from '@tauri-apps/plugin-dialog';
 import {readDir, readTextFile, writeTextFile} from '@tauri-apps/plugin-fs';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import packageJson from '../package.json';
 import FileTree, {type FileTreeNode} from './components/FileTree';
 import QuickOpen, {type RecentFile} from './components/QuickOpen';
 import './App.css';
@@ -38,7 +40,7 @@ type TabDrag = {
 	hasMoved: boolean;
 };
 
-const APP_MENUS = ['file', 'view'] as const;
+const APP_MENUS = ['file', 'view', 'help'] as const;
 
 type AppMenu = (typeof APP_MENUS)[number];
 
@@ -189,11 +191,14 @@ function App() {
 	const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
 	const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
 	const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
+	const [isAboutOpen, setIsAboutOpen] = useState(false);
+	const [appVersion, setAppVersion] = useState(packageJson.version);
 	const editorRef = useRef<EditorInstance | null>(null);
 	const monacoRef = useRef<Monaco | null>(null);
 	const appMenuRefs = useRef<Record<AppMenu, HTMLDivElement | null>>({
 		file: null,
 		view: null,
+		help: null,
 	});
 	const tabDragRef = useRef<TabDrag | null>(null);
 	const tabDropTargetRef = useRef<TabDropTarget | null>(null);
@@ -665,6 +670,7 @@ function App() {
 				setOpenAppMenu(null);
 				setSelectedAppMenuItem(null);
 				setIsQuickOpenOpen(false);
+				setIsAboutOpen(false);
 				return;
 			}
 			if (event.ctrlKey && event.key === 'Tab') {
@@ -853,6 +859,16 @@ function App() {
 		};
 	}, [openDroppedPaths]);
 
+	useEffect(() => {
+		if (!('__TAURI_INTERNALS__' in globalThis)) return;
+
+		void getVersion()
+			.then(setAppVersion)
+			.catch(() => {
+				// Keep the package version as a fallback.
+			});
+	}, []);
+
 	const handleEditorMount: OnMount = (editor, monaco) => {
 		editorRef.current = editor;
 		monacoRef.current = monaco;
@@ -875,6 +891,25 @@ function App() {
 				onClose={() => setIsQuickOpenOpen(false)}
 				onSelect={path => void openPaths([path])}
 			/>
+			{isAboutOpen && (
+				<div className="confirm-dialog-backdrop" role="presentation">
+					<section
+						className="confirm-dialog"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="about-dialog-title"
+						aria-describedby="about-dialog-version"
+					>
+						<h2 id="about-dialog-title">About tekst</h2>
+						<p id="about-dialog-version">Version {appVersion}</p>
+						<div className="confirm-dialog-actions">
+							<button type="button" onClick={() => setIsAboutOpen(false)}>
+								Close
+							</button>
+						</div>
+					</section>
+				</div>
+			)}
 			{pendingTabClose && (
 				<div className="confirm-dialog-backdrop" role="presentation">
 					<section
@@ -1130,6 +1165,57 @@ function App() {
 								>
 									<span>Quick open</span>
 									<kbd>Ctrl/⌘ P</kbd>
+								</button>
+							</div>
+						)}
+					</div>
+
+					<div className="app-menu">
+						<button
+							className="app-menu-trigger"
+							type="button"
+							aria-expanded={openAppMenu === 'help'}
+							aria-haspopup="menu"
+							onPointerDown={event => event.stopPropagation()}
+							onClick={() => {
+								const isOpen = openAppMenu === 'help';
+								setOpenAppMenu(isOpen ? null : 'help');
+								setSelectedAppMenuItem(
+									isOpen ? null : {menu: 'help', index: 0},
+								);
+							}}
+						>
+							Help
+						</button>
+						{openAppMenu === 'help' && (
+							<div
+								className="app-menu-dropdown"
+								role="menu"
+								aria-label="Help"
+								ref={menu => {
+									appMenuRefs.current.help = menu;
+								}}
+								onPointerDown={event => event.stopPropagation()}
+							>
+								<button
+									type="button"
+									role="menuitem"
+									className={
+										selectedAppMenuItem?.menu === 'help' &&
+										selectedAppMenuItem.index === 0
+											? 'selected'
+											: undefined
+									}
+									onMouseEnter={() =>
+										setSelectedAppMenuItem({menu: 'help', index: 0})
+									}
+									onClick={() => {
+										setOpenAppMenu(null);
+										setSelectedAppMenuItem(null);
+										setIsAboutOpen(true);
+									}}
+								>
+									<span>About tekst</span>
 								</button>
 							</div>
 						)}
