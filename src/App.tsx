@@ -83,6 +83,9 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
 };
 
 const EMPTY_DOCUMENT = '';
+const PRIMARY_MODIFIER_LABEL = navigator.userAgent.includes('Macintosh')
+	? '⌘'
+	: 'Ctrl';
 
 function fileNameFromPath(path: string) {
 	return path.split(/[\\/]/).pop() || 'Untitled';
@@ -989,7 +992,7 @@ function App() {
 									}}
 								>
 									<span>New file</span>
-									<kbd>Ctrl/⌘ N</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + N</kbd>
 								</button>
 								<button
 									type="button"
@@ -1009,7 +1012,7 @@ function App() {
 									}}
 								>
 									<span>Open files…</span>
-									<kbd>Ctrl/⌘ O</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + O</kbd>
 								</button>
 								<button
 									type="button"
@@ -1050,7 +1053,7 @@ function App() {
 									}}
 								>
 									<span>Save</span>
-									<kbd>Ctrl/⌘ S</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + S</kbd>
 								</button>
 								<button
 									type="button"
@@ -1071,7 +1074,7 @@ function App() {
 									}}
 								>
 									<span>Save as…</span>
-									<kbd>Ctrl/⌘ ⇧ S</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + Shift + S</kbd>
 								</button>
 								<div className="app-menu-separator" role="separator" />
 								<button
@@ -1093,7 +1096,7 @@ function App() {
 									}}
 								>
 									<span>Close tab</span>
-									<kbd>Ctrl/⌘ W</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + W</kbd>
 								</button>
 							</div>
 						)}
@@ -1144,7 +1147,7 @@ function App() {
 									}}
 								>
 									<span>{isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}</span>
-									<kbd>Ctrl/⌘ B</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + B</kbd>
 								</button>
 								<button
 									type="button"
@@ -1164,7 +1167,7 @@ function App() {
 									}}
 								>
 									<span>Quick open</span>
-									<kbd>Ctrl/⌘ P</kbd>
+									<kbd>{PRIMARY_MODIFIER_LABEL} + P</kbd>
 								</button>
 							</div>
 						)}
