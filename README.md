@@ -8,7 +8,7 @@
 
 ## Install
 
-See the [releases](https://github.com/knutkirkhorn/tekst/releases).
+See [releases](https://github.com/knutkirkhorn/tekst/releases) for Windows and macOS versions.
 
 ## Development
 
