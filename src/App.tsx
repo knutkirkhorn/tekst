@@ -186,6 +186,10 @@ function App() {
 		useState<AppMenuSelection | null>(null);
 	const [pendingTabClose, setPendingTabClose] =
 		useState<PendingTabClose | null>(null);
+	const [pendingWindowClose, setPendingWindowClose] = useState<string | null>(
+		null,
+	);
+	const [isSavingBeforeClose, setIsSavingBeforeClose] = useState(false);
 	const [draggedTabId, setDraggedTabId] = useState<string | null>(null);
 	const [tabDropTarget, setTabDropTarget] = useState<TabDropTarget | null>(
 		null,
@@ -206,6 +210,8 @@ function App() {
 	const tabDragRef = useRef<TabDrag | null>(null);
 	const tabDropTargetRef = useRef<TabDropTarget | null>(null);
 	const ignoreTabClickRef = useRef(false);
+	const tabsRef = useRef(tabs);
+	tabsRef.current = tabs;
 
 	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
 
@@ -450,7 +456,7 @@ function App() {
 						defaultPath: tab.filePath ?? tab.name,
 					});
 				}
-				if (!targetPath) return;
+				if (!targetPath) return false;
 
 				await writeTextFile(targetPath, getTabContent(tab));
 				const newName = fileNameFromPath(targetPath);
@@ -468,12 +474,34 @@ function App() {
 					),
 				);
 				setStatus(`Saved ${newName}`);
+				return true;
 			} catch (error) {
 				setStatus(`Save failed: ${String(error)}`);
+				return false;
 			}
 		},
 		[getTabContent],
 	);
+
+	const saveAllAndCloseWindow = useCallback(async () => {
+		setIsSavingBeforeClose(true);
+		const dirtyTabs = tabs.filter(tab => tab.dirty);
+
+		for (const tab of dirtyTabs) {
+			const didSave = await saveTab(tab);
+			if (!didSave) {
+				setIsSavingBeforeClose(false);
+				return;
+			}
+		}
+
+		try {
+			await getCurrentWindow().destroy();
+		} catch (error) {
+			setIsSavingBeforeClose(false);
+			setStatus(`Close failed: ${String(error)}`);
+		}
+	}, [saveTab, tabs]);
 
 	const performCloseTabs = useCallback(
 		(ids: string[]) => {
@@ -805,14 +833,40 @@ function App() {
 	}, [activeTab]);
 
 	useEffect(() => {
-		const warnBeforeClose = (event: BeforeUnloadEvent) => {
-			if (tabs.some(tab => tab.dirty)) {
+		if (!('__TAURI_INTERNALS__' in globalThis)) return;
+
+		let isDisposed = false;
+		let unlisten: (() => void) | undefined;
+
+		void getCurrentWindow()
+			.onCloseRequested(event => {
+				const dirtyTabs = tabsRef.current.filter(tab => tab.dirty);
+				if (dirtyTabs.length === 0) return;
+
 				event.preventDefault();
-			}
+				setPendingWindowClose(
+					dirtyTabs.length === 1
+						? `"${dirtyTabs[0].name}" has unsaved changes.`
+						: `${dirtyTabs.length} files have unsaved changes.`,
+				);
+			})
+			.then(stopListening => {
+				if (isDisposed) {
+					stopListening();
+				} else {
+					unlisten = stopListening;
+				}
+			})
+			.catch(error => {
+				setStatus(`Close protection unavailable: ${String(error)}`);
+			});
+
+		// eslint-disable-next-line consistent-return
+		return () => {
+			isDisposed = true;
+			unlisten?.();
 		};
-		window.addEventListener('beforeunload', warnBeforeClose);
-		return () => window.removeEventListener('beforeunload', warnBeforeClose);
-	}, [tabs]);
+	}, []);
 
 	useEffect(() => {
 		if (!('__TAURI_INTERNALS__' in globalThis)) return;
@@ -939,6 +993,44 @@ function App() {
 								}}
 							>
 								Close without saving
+							</button>
+						</div>
+					</section>
+				</div>
+			)}
+			{pendingWindowClose && (
+				<div className="confirm-dialog-backdrop" role="presentation">
+					<section
+						className="confirm-dialog"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="close-window-dialog-title"
+						aria-describedby="close-window-dialog-description"
+					>
+						<h2 id="close-window-dialog-title">Save changes before closing?</h2>
+						<p id="close-window-dialog-description">{pendingWindowClose}</p>
+						<div className="confirm-dialog-actions">
+							<button
+								type="button"
+								disabled={isSavingBeforeClose}
+								onClick={() => setPendingWindowClose(null)}
+							>
+								Cancel
+							</button>
+							<button
+								className="danger"
+								type="button"
+								disabled={isSavingBeforeClose}
+								onClick={() => void getCurrentWindow().destroy()}
+							>
+								Discard
+							</button>
+							<button
+								type="button"
+								disabled={isSavingBeforeClose}
+								onClick={() => void saveAllAndCloseWindow()}
+							>
+								{isSavingBeforeClose ? 'Saving…' : 'Save'}
 							</button>
 						</div>
 					</section>
