@@ -217,10 +217,10 @@ function App() {
 
 	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
 
-	const setTabDirty = useCallback((id: string) => {
+	const updateTabDirty = useCallback((id: string, content: string) => {
 		setTabs(currentTabs =>
 			currentTabs.map(tab =>
-				tab.id === id && !tab.dirty ? {...tab, dirty: true} : tab,
+				tab.id === id ? {...tab, dirty: content !== tab.initialContent} : tab,
 			),
 		);
 	}, []);
@@ -465,8 +465,10 @@ function App() {
 				}
 				if (!targetPath) return false;
 
-				await writeTextFile(targetPath, getTabContent(tab));
+				const savedContent = getTabContent(tab);
+				await writeTextFile(targetPath, savedContent);
 				const newName = fileNameFromPath(targetPath);
+				const currentContent = getTabContent(tab);
 				setTabs(currentTabs =>
 					currentTabs.map(currentTab =>
 						currentTab.id === tab.id
@@ -474,8 +476,9 @@ function App() {
 									...currentTab,
 									filePath: targetPath,
 									name: newName,
+									initialContent: savedContent,
 									language: languageFromPath(targetPath),
-									dirty: false,
+									dirty: currentContent !== savedContent,
 								}
 							: currentTab,
 					),
@@ -1553,7 +1556,9 @@ function App() {
 								theme="tekst-dark"
 								saveViewState
 								onMount={handleEditorMount}
-								onChange={() => setTabDirty(activeTab.id)}
+								onChange={value =>
+									updateTabDirty(activeTab.id, value ?? EMPTY_DOCUMENT)
+								}
 								beforeMount={monaco => {
 									monaco.editor.defineTheme('tekst-dark', {
 										base: 'vs-dark',
