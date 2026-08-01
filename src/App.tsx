@@ -476,6 +476,7 @@ function App() {
 							: currentTab,
 					),
 				);
+				if (!tab.filePath) rememberRecentFile(targetPath);
 				setStatus(`Saved ${newName}`);
 				return true;
 			} catch (error) {
@@ -483,7 +484,7 @@ function App() {
 				return false;
 			}
 		},
-		[getTabContent],
+		[getTabContent, rememberRecentFile],
 	);
 
 	const saveAllAndCloseWindow = useCallback(async () => {
