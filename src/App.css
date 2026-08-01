@@ -98,33 +98,60 @@ button {
 	scrollbar-color: #444b54 transparent;
 }
 
-.quick-open-results button {
-	width: 100%;
+.quick-open-result {
 	display: grid;
-	gap: 1px;
-	padding: 7px 9px;
-	border: 0;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
 	border-radius: 4px;
-	color: #d9dde2;
-	background: transparent;
-	text-align: left;
-	cursor: pointer;
 }
 
-.quick-open-results button.selected {
+.quick-open-result.selected {
 	background: #343a43;
 }
 
-.quick-open-results button span,
-.quick-open-results button small {
+.quick-open-result button {
+	border: 0;
+	color: #d9dde2;
+	background: transparent;
+	cursor: pointer;
+}
+
+.quick-open-file {
+	min-width: 0;
+	display: grid;
+	gap: 1px;
+	padding: 7px 9px;
+	text-align: left;
+}
+
+.quick-open-file span,
+.quick-open-file small {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.quick-open-results button small {
+.quick-open-file small {
 	color: #858d96;
 	font-size: 11px;
+}
+
+.quick-open-remove {
+	width: 28px;
+	height: 28px;
+	margin-right: 4px;
+	border-radius: 4px;
+	color: #aeb4bb;
+	font-size: 18px;
+	line-height: 1;
+	text-align: center;
+}
+
+.quick-open-remove:hover,
+.quick-open-remove:focus-visible {
+	color: #fff;
+	background: #505762;
+	outline: none;
 }
 
 .quick-open-empty {

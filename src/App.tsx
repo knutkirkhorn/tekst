@@ -241,6 +241,10 @@ function App() {
 		);
 	}, []);
 
+	const removeRecentFile = useCallback((path: string) => {
+		setRecentFiles(files => files.filter(file => file.path !== path));
+	}, []);
+
 	const openPaths = useCallback(
 		async (paths: string[]) => {
 			try {
@@ -950,6 +954,7 @@ function App() {
 				isOpen={isQuickOpenOpen}
 				recentFiles={recentFiles}
 				onClose={() => setIsQuickOpenOpen(false)}
+				onRemove={removeRecentFile}
 				onSelect={path => void openPaths([path])}
 			/>
 			{isAboutOpen && (

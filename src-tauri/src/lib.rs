@@ -11,13 +11,8 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
-                let close_tab = MenuItem::with_id(
-                    app,
-                    "close-tab",
-                    "Close Tab",
-                    true,
-                    Some("CmdOrCtrl+W"),
-                )?;
+                let close_tab =
+                    MenuItem::with_id(app, "close-tab", "Close Tab", true, Some("CmdOrCtrl+W"))?;
                 let menu = Menu::with_items(
                     app,
                     &[

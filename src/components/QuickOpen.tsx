@@ -9,10 +9,17 @@ type QuickOpenProps = {
 	isOpen: boolean;
 	recentFiles: RecentFile[];
 	onClose: () => void;
+	onRemove: (path: string) => void;
 	onSelect: (path: string) => void;
 };
 
-function QuickOpen({isOpen, recentFiles, onClose, onSelect}: QuickOpenProps) {
+function QuickOpen({
+	isOpen,
+	recentFiles,
+	onClose,
+	onRemove,
+	onSelect,
+}: QuickOpenProps) {
 	const [query, setQuery] = useState('');
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement | null>(null);
@@ -37,6 +44,12 @@ function QuickOpen({isOpen, recentFiles, onClose, onSelect}: QuickOpenProps) {
 	useEffect(() => {
 		setSelectedIndex(0);
 	}, [query]);
+
+	useEffect(() => {
+		setSelectedIndex(index =>
+			Math.min(index, Math.max(filteredFiles.length - 1, 0)),
+		);
+	}, [filteredFiles.length]);
 
 	if (!isOpen) return null;
 
@@ -98,18 +111,31 @@ function QuickOpen({isOpen, recentFiles, onClose, onSelect}: QuickOpenProps) {
 
 				<div className="quick-open-results" role="listbox">
 					{filteredFiles.map((file, index) => (
-						<button
+						<div
 							key={file.path}
-							className={index === selectedIndex ? 'selected' : ''}
-							type="button"
+							className={`quick-open-result${index === selectedIndex ? ' selected' : ''}`}
 							role="option"
 							aria-selected={index === selectedIndex}
 							onMouseEnter={() => setSelectedIndex(index)}
-							onClick={() => selectFile(file.path)}
 						>
-							<span>{file.name}</span>
-							<small>{file.path}</small>
-						</button>
+							<button
+								className="quick-open-file"
+								type="button"
+								onClick={() => selectFile(file.path)}
+							>
+								<span>{file.name}</span>
+								<small>{file.path}</small>
+							</button>
+							<button
+								className="quick-open-remove"
+								type="button"
+								title={`Remove ${file.name} from recent files`}
+								aria-label={`Remove ${file.name} from recent files`}
+								onClick={() => onRemove(file.path)}
+							>
+								×
+							</button>
+						</div>
 					))}
 					{filteredFiles.length === 0 && (
 						<div className="quick-open-empty">
