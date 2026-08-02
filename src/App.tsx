@@ -1351,6 +1351,7 @@ function App() {
 								nodes={directoryRoot.children}
 								onOpenFile={path => void openPaths([path])}
 								onToggleDirectory={path => void toggleDirectory(path)}
+								selectedPath={activeTab?.filePath ?? null}
 							/>
 						) : (
 							<div className="sidebar-empty">

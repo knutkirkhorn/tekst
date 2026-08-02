@@ -438,6 +438,15 @@ button {
 	background: #252a30;
 }
 
+.file-tree-item.selected {
+	color: #eef1f4;
+	background: #343a43;
+}
+
+.file-tree-item.selected:hover {
+	background: #3b424c;
+}
+
 .file-tree-chevron {
 	flex: 0 0 11px;
 	color: #8b929b;

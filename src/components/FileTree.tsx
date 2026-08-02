@@ -13,6 +13,7 @@ type FileTreeProps = {
 	nodes: FileTreeNode[];
 	onOpenFile: (path: string) => void;
 	onToggleDirectory: (path: string) => void;
+	selectedPath: string | null;
 };
 
 type FileTreeItemProps = Omit<FileTreeProps, 'nodes'> & {
@@ -25,7 +26,10 @@ const FileTreeItem = memo(function FileTreeItem({
 	depth,
 	onOpenFile,
 	onToggleDirectory,
+	selectedPath,
 }: FileTreeItemProps) {
+	const isSelected = node.isDirectory ? false : node.path === selectedPath;
+
 	const handleClick = () => {
 		if (node.isDirectory) {
 			onToggleDirectory(node.path);
@@ -38,9 +42,10 @@ const FileTreeItem = memo(function FileTreeItem({
 		<div
 			role="treeitem"
 			aria-expanded={node.isDirectory ? node.isExpanded : undefined}
+			aria-selected={node.isDirectory ? undefined : isSelected}
 		>
 			<button
-				className="file-tree-item"
+				className={`file-tree-item${isSelected ? ' selected' : ''}`}
 				type="button"
 				onClick={handleClick}
 				title={node.path}
@@ -71,6 +76,7 @@ const FileTreeItem = memo(function FileTreeItem({
 							depth={depth + 1}
 							onOpenFile={onOpenFile}
 							onToggleDirectory={onToggleDirectory}
+							selectedPath={selectedPath}
 						/>
 					))}
 					{node.children.length === 0 && (
@@ -87,7 +93,12 @@ const FileTreeItem = memo(function FileTreeItem({
 	);
 });
 
-function FileTree({nodes, onOpenFile, onToggleDirectory}: FileTreeProps) {
+function FileTree({
+	nodes,
+	onOpenFile,
+	onToggleDirectory,
+	selectedPath,
+}: FileTreeProps) {
 	return (
 		<div className="file-tree" role="tree" aria-label="Directory files">
 			{nodes.map(node => (
@@ -97,6 +108,7 @@ function FileTree({nodes, onOpenFile, onToggleDirectory}: FileTreeProps) {
 					depth={0}
 					onOpenFile={onOpenFile}
 					onToggleDirectory={onToggleDirectory}
+					selectedPath={selectedPath}
 				/>
 			))}
 		</div>
