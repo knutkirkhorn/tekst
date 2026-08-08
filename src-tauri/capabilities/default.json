@@ -8,6 +8,14 @@
 		"core:window:allow-destroy",
 		"dialog:default",
 		"fs:default",
-		"fs:allow-write-text-file"
+		"fs:allow-write-text-file",
+		{
+			"identifier": "opener:allow-open-url",
+			"allow": [
+				{
+					"url": "https://github.com/knutkirkhorn/tekst/releases"
+				}
+			]
+		}
 	]
 }

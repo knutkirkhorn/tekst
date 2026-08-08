@@ -6,6 +6,7 @@ import {getCurrentWebview, type DragDropEvent} from '@tauri-apps/api/webview';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {open, save} from '@tauri-apps/plugin-dialog';
 import {readDir, readTextFile, writeTextFile} from '@tauri-apps/plugin-fs';
+import {openUrl} from '@tauri-apps/plugin-opener';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import packageJson from '../package.json';
 import FileTree, {type FileTreeNode} from './components/FileTree';
@@ -83,6 +84,7 @@ const LANGUAGE_BY_EXTENSION: Record<string, string> = {
 };
 
 const EMPTY_DOCUMENT = '';
+const RELEASES_URL = 'https://github.com/knutkirkhorn/tekst/releases';
 const PRIMARY_MODIFIER_LABEL = navigator.userAgent.includes('Macintosh')
 	? '⌘'
 	: 'Ctrl';
@@ -1348,6 +1350,27 @@ function App() {
 									}
 									onMouseEnter={() =>
 										setSelectedAppMenuItem({menu: 'help', index: 0})
+									}
+									onClick={() => {
+										setOpenAppMenu(null);
+										setSelectedAppMenuItem(null);
+										void openUrl(RELEASES_URL);
+									}}
+								>
+									<span>See latest releases on GitHub</span>
+								</button>
+								<div className="app-menu-separator" role="separator" />
+								<button
+									type="button"
+									role="menuitem"
+									className={
+										selectedAppMenuItem?.menu === 'help' &&
+										selectedAppMenuItem.index === 1
+											? 'selected'
+											: undefined
+									}
+									onMouseEnter={() =>
+										setSelectedAppMenuItem({menu: 'help', index: 1})
 									}
 									onClick={() => {
 										setOpenAppMenu(null);
