@@ -552,6 +552,27 @@ function App() {
 		[activeTabId, tabs],
 	);
 
+	const savePendingTabsAndClose = useCallback(async () => {
+		if (!pendingTabClose) return;
+
+		setIsSavingBeforeClose(true);
+		const dirtyTabs = tabs.filter(
+			tab => pendingTabClose.ids.includes(tab.id) && tab.dirty,
+		);
+
+		for (const tab of dirtyTabs) {
+			const didSave = await saveTab(tab);
+			if (!didSave) {
+				setIsSavingBeforeClose(false);
+				return;
+			}
+		}
+
+		performCloseTabs(pendingTabClose.ids);
+		setPendingTabClose(null);
+		setIsSavingBeforeClose(false);
+	}, [pendingTabClose, performCloseTabs, saveTab, tabs]);
+
 	const closeTabs = useCallback(
 		(ids: string[]) => {
 			const tabsToClose = tabs.filter(tab => ids.includes(tab.id));
@@ -988,23 +1009,35 @@ function App() {
 						aria-labelledby="close-tab-dialog-title"
 						aria-describedby="close-tab-dialog-description"
 					>
-						<h2 id="close-tab-dialog-title">Close without saving?</h2>
+						<h2 id="close-tab-dialog-title">Save changes before closing?</h2>
 						<p id="close-tab-dialog-description">
 							{pendingTabClose.description}
 						</p>
 						<div className="confirm-dialog-actions">
-							<button type="button" onClick={() => setPendingTabClose(null)}>
+							<button
+								type="button"
+								disabled={isSavingBeforeClose}
+								onClick={() => setPendingTabClose(null)}
+							>
 								Cancel
 							</button>
 							<button
 								className="danger"
 								type="button"
+								disabled={isSavingBeforeClose}
 								onClick={() => {
 									performCloseTabs(pendingTabClose.ids);
 									setPendingTabClose(null);
 								}}
 							>
 								Close without saving
+							</button>
+							<button
+								type="button"
+								disabled={isSavingBeforeClose}
+								onClick={() => void savePendingTabsAndClose()}
+							>
+								{isSavingBeforeClose ? 'Saving…' : 'Save'}
 							</button>
 						</div>
 					</section>
