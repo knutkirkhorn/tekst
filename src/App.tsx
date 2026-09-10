@@ -19,8 +19,18 @@ type EditorTab = {
 	filePath: string | null;
 	name: string;
 	initialContent: string;
+	content: string;
 	language: string;
 	dirty: boolean;
+};
+
+type SidebarMode = 'files' | 'search';
+
+type SearchMatch = {
+	tabId: string;
+	fileName: string;
+	line: number;
+	preview: string;
 };
 
 type TabContextMenu = {
@@ -106,9 +116,31 @@ function createUntitledTab(sequence: number): EditorTab {
 		filePath: null,
 		name,
 		initialContent: EMPTY_DOCUMENT,
+		content: EMPTY_DOCUMENT,
 		language: 'plaintext',
 		dirty: false,
 	};
+}
+
+function searchOpenTabs(tabs: EditorTab[], query: string): SearchMatch[] {
+	const normalizedQuery = query.trim().toLocaleLowerCase();
+	if (!normalizedQuery) return [];
+
+	const matches: SearchMatch[] = [];
+	for (const tab of tabs) {
+		const lines = tab.content.split(/\r?\n/);
+		for (const [index, line] of lines.entries()) {
+			if (!line.toLocaleLowerCase().includes(normalizedQuery)) continue;
+			matches.push({
+				tabId: tab.id,
+				fileName: tab.name,
+				line: index + 1,
+				preview: line.trim() || 'Blank line',
+			});
+			if (matches.length === 100) return matches;
+		}
+	}
+	return matches;
 }
 
 function nextUntitledSequence(tabs: EditorTab[]) {
@@ -199,6 +231,8 @@ function App() {
 		null,
 	);
 	const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+	const [sidebarMode, setSidebarMode] = useState<SidebarMode>('files');
+	const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
 	const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
 	const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
 	const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
@@ -218,11 +252,17 @@ function App() {
 	tabsRef.current = tabs;
 
 	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
+	const sidebarSearchMatches = useMemo(
+		() => searchOpenTabs(tabs, sidebarSearchQuery),
+		[tabs, sidebarSearchQuery],
+	);
 
 	const updateTabDirty = useCallback((id: string, content: string) => {
 		setTabs(currentTabs =>
 			currentTabs.map(tab =>
-				tab.id === id ? {...tab, dirty: content !== tab.initialContent} : tab,
+				tab.id === id
+					? {...tab, content, dirty: content !== tab.initialContent}
+					: tab,
 			),
 		);
 	}, []);
@@ -272,6 +312,7 @@ function App() {
 						filePath,
 						name: fileNameFromPath(filePath),
 						initialContent: content,
+						content,
 						language: languageFromPath(filePath),
 						dirty: false,
 					};
@@ -452,7 +493,18 @@ function App() {
 		const model = monacoRef.current?.editor.getModel(
 			monacoRef.current.Uri.parse(tab.modelPath),
 		);
-		return model?.getValue() ?? tab.initialContent;
+		return model?.getValue() ?? tab.content;
+	}, []);
+
+	const openSearchMatch = useCallback((match: SearchMatch) => {
+		setActiveTabId(match.tabId);
+		requestAnimationFrame(() => {
+			const editor = editorRef.current;
+			if (!editor) return;
+			editor.revealLineInCenter(match.line);
+			editor.setPosition({lineNumber: match.line, column: 1});
+			editor.focus();
+		});
 	}, []);
 
 	const saveTab = useCallback(
@@ -479,6 +531,7 @@ function App() {
 									filePath: targetPath,
 									name: newName,
 									initialContent: savedContent,
+									content: savedContent,
 									language: languageFromPath(targetPath),
 									dirty: currentContent !== savedContent,
 								}
@@ -1388,21 +1441,87 @@ function App() {
 
 			<div className="workspace">
 				{isSidebarOpen && (
-					<aside className="sidebar" aria-label="File explorer">
+					<aside
+						className="sidebar"
+						aria-label={
+							sidebarMode === 'files' ? 'File explorer' : 'Search open files'
+						}
+					>
 						<div className="sidebar-header">
 							<span title={directoryRoot?.path}>
-								{directoryRoot?.name ?? 'Explorer'}
+								{sidebarMode === 'files'
+									? directoryRoot?.name ?? 'Explorer'
+									: 'Search'}
 							</span>
 							<button
+								className="sidebar-mode-toggle"
 								type="button"
-								onClick={() => void openDirectory()}
-								title="Open folder"
-								aria-label="Open folder"
+								onClick={() =>
+									setSidebarMode(mode =>
+										mode === 'files' ? 'search' : 'files',
+									)
+								}
+								title={
+									sidebarMode === 'files'
+										? 'Search open files'
+										: 'Show file explorer'
+								}
+								aria-label={
+									sidebarMode === 'files'
+										? 'Search open files'
+										: 'Show file explorer'
+								}
 							>
-								+
+								{sidebarMode === 'files' ? '⌕' : '←'}
 							</button>
+							{sidebarMode === 'files' && (
+								<button
+									type="button"
+									onClick={() => void openDirectory()}
+									title="Open folder"
+									aria-label="Open folder"
+								>
+									+
+								</button>
+							)}
 						</div>
-						{directoryRoot?.children ? (
+						{sidebarMode === 'search' ? (
+							<div className="sidebar-search">
+								<input
+									autoFocus
+									type="search"
+									value={sidebarSearchQuery}
+									onChange={event => setSidebarSearchQuery(event.target.value)}
+									placeholder="Search open files"
+									aria-label="Search content in open files"
+								/>
+								{sidebarSearchQuery.trim() ? (
+									sidebarSearchMatches.length > 0 ? (
+										<div className="sidebar-search-results" role="list">
+											{sidebarSearchMatches.map(match => (
+												<button
+													key={`${match.tabId}-${match.line}`}
+													type="button"
+													className="sidebar-search-result"
+													onClick={() => openSearchMatch(match)}
+												>
+													<span>{match.fileName} : {match.line}</span>
+													<small>{match.preview}</small>
+												</button>
+											))}
+										</div>
+									) : (
+										<div className="sidebar-empty">
+											No matches in open files
+										</div>
+									)
+								) : (
+									<div className="sidebar-empty">
+										Search the contents of your open files
+									</div>
+								)}
+							</div>
+						) : directoryRoot?.children ? (
 							<FileTree
 								nodes={directoryRoot.children}
 								onOpenFile={path => void openPaths([path])}

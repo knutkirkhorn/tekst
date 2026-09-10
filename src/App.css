@@ -382,16 +382,98 @@ button {
 .sidebar-header button {
 	width: 26px;
 	height: 26px;
+	display: grid;
+	place-items: center;
+	padding: 0;
 	border: 0;
 	border-radius: 4px;
 	background: transparent;
 	font-size: 18px;
+	line-height: 1;
 	cursor: pointer;
 }
 
 .sidebar-header button:hover,
 .sidebar-empty button:hover {
 	background: #292e34;
+}
+
+.sidebar-header .sidebar-mode-toggle {
+	font-size: 22px;
+	line-height: 1;
+}
+
+.sidebar-search {
+	min-height: 0;
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+}
+
+.sidebar-search input {
+	width: calc(100% - 16px);
+	height: 30px;
+	margin: 8px;
+	padding: 0 8px;
+	border: 1px solid #414850;
+	border-radius: 4px;
+	outline: 0;
+	color: #e3e7eb;
+	background: #101214;
+	font: inherit;
+}
+
+.sidebar-search input:focus {
+	border-color: #7189dc;
+}
+
+.sidebar-search input::placeholder {
+	color: #747c86;
+}
+
+.sidebar-search-results {
+	min-height: 0;
+	padding: 0 4px 8px;
+	overflow: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #343a40 transparent;
+}
+
+.sidebar-search-result {
+	width: 100%;
+	display: grid;
+	gap: 2px;
+	padding: 6px 8px;
+	border: 0;
+	border-radius: 3px;
+	color: #cbd1d8;
+	background: transparent;
+	text-align: left;
+	cursor: pointer;
+}
+
+.sidebar-search-result:hover,
+.sidebar-search-result:focus-visible {
+	outline: none;
+	background: #292e34;
+}
+
+.sidebar-search-result span,
+.sidebar-search-result small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sidebar-search-result span {
+	color: #e1e5e9;
+	font-size: 12px;
+}
+
+.sidebar-search-result small {
+	color: #848c96;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 11px;
 }
 
 .sidebar-empty {
