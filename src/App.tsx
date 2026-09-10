@@ -1,6 +1,7 @@
 import Editor, {type Monaco, type OnMount} from '@monaco-editor/react';
 import {getVersion} from '@tauri-apps/api/app';
 import {listen} from '@tauri-apps/api/event';
+import {invoke} from '@tauri-apps/api/core';
 import {join} from '@tauri-apps/api/path';
 import {getCurrentWebview, type DragDropEvent} from '@tauri-apps/api/webview';
 import {getCurrentWindow} from '@tauri-apps/api/window';
@@ -27,8 +28,15 @@ type EditorTab = {
 type SidebarMode = 'files' | 'search';
 
 type SearchMatch = {
-	tabId: string;
+	tabId?: string;
+	filePath?: string;
 	fileName: string;
+	line: number;
+	preview: string;
+};
+
+type DirectorySearchMatch = {
+	path: string;
 	line: number;
 	preview: string;
 };
@@ -133,6 +141,7 @@ function searchOpenTabs(tabs: EditorTab[], query: string): SearchMatch[] {
 			if (!line.toLocaleLowerCase().includes(normalizedQuery)) continue;
 			matches.push({
 				tabId: tab.id,
+				filePath: tab.filePath ?? undefined,
 				fileName: tab.name,
 				line: index + 1,
 				preview: line.trim() || 'Blank line',
@@ -233,6 +242,9 @@ function App() {
 	const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 	const [sidebarMode, setSidebarMode] = useState<SidebarMode>('files');
 	const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
+	const [directorySearchMatches, setDirectorySearchMatches] = useState<
+		DirectorySearchMatch[]
+	>([]);
 	const [directoryRoot, setDirectoryRoot] = useState<FileTreeNode | null>(null);
 	const [recentFiles, setRecentFiles] = useState<RecentFile[]>([]);
 	const [isQuickOpenOpen, setIsQuickOpenOpen] = useState(false);
@@ -253,8 +265,24 @@ function App() {
 
 	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
 	const sidebarSearchMatches = useMemo(
-		() => searchOpenTabs(tabs, sidebarSearchQuery),
-		[tabs, sidebarSearchQuery],
+		() => {
+			const openFilePaths = new Set(
+				tabs.flatMap(tab => (tab.filePath ? [tab.filePath] : [])),
+			);
+			const folderMatches = directorySearchMatches
+				.filter(match => !openFilePaths.has(match.path))
+				.map(match => ({
+					filePath: match.path,
+					fileName: fileNameFromPath(match.path),
+					line: match.line,
+					preview: match.preview || 'Blank line',
+				}));
+			return [...searchOpenTabs(tabs, sidebarSearchQuery), ...folderMatches].slice(
+				0,
+				100,
+			);
+		},
+		[tabs, sidebarSearchQuery, directorySearchMatches],
 	);
 
 	const updateTabDirty = useCallback((id: string, content: string) => {
@@ -497,15 +525,21 @@ function App() {
 	}, []);
 
 	const openSearchMatch = useCallback((match: SearchMatch) => {
-		setActiveTabId(match.tabId);
-		requestAnimationFrame(() => {
+		const revealMatch = () => requestAnimationFrame(() => {
 			const editor = editorRef.current;
 			if (!editor) return;
 			editor.revealLineInCenter(match.line);
 			editor.setPosition({lineNumber: match.line, column: 1});
 			editor.focus();
 		});
-	}, []);
+
+		if (match.tabId) {
+			setActiveTabId(match.tabId);
+			revealMatch();
+		} else if (match.filePath) {
+			void openPaths([match.filePath]).then(revealMatch);
+		}
+	}, [openPaths]);
 
 	const saveTab = useCallback(
 		async (tab: EditorTab, isSaveAs = false) => {
@@ -908,6 +942,37 @@ function App() {
 			window.removeEventListener('resize', dismissMenu);
 		};
 	}, [openAppMenu]);
+
+	useEffect(() => {
+		const query = sidebarSearchQuery.trim();
+		if (!query || !directoryRoot || !('__TAURI_INTERNALS__' in globalThis)) {
+			setDirectorySearchMatches([]);
+			return;
+		}
+
+		let isCurrent = true;
+		setDirectorySearchMatches([]);
+		const timer = globalThis.setTimeout(() => {
+			void invoke<DirectorySearchMatch[]>('search_directory', {
+				root: directoryRoot.path,
+				query,
+			})
+				.then(matches => {
+					if (isCurrent) setDirectorySearchMatches(matches);
+				})
+				.catch(error => {
+					if (isCurrent) {
+						setDirectorySearchMatches([]);
+						setStatus(`Folder search failed: ${String(error)}`);
+					}
+				});
+		}, 150);
+
+		return () => {
+			isCurrent = false;
+			globalThis.clearTimeout(timer);
+		};
+	}, [directoryRoot, sidebarSearchQuery]);
 
 	useEffect(() => {
 		const title = activeTab
@@ -1500,7 +1565,7 @@ function App() {
 										<div className="sidebar-search-results" role="list">
 											{sidebarSearchMatches.map(match => (
 												<button
-													key={`${match.tabId}-${match.line}`}
+													key={`${match.tabId ?? match.filePath}-${match.line}`}
 													type="button"
 													className="sidebar-search-result"
 													onClick={() => openSearchMatch(match)}
