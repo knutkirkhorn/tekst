@@ -6,6 +6,10 @@
 	<img src="./images/icon.png" alt="Tekst icon" width="240" />
 </div>
 
+<div align="center">
+	<img src="./images/screenshot.png" alt="Tekst screenshot" width="100%" />
+</div>
+
 ## Install
 
 See [releases](https://github.com/knutkirkhorn/tekst/releases) for Windows and macOS versions.
