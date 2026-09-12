@@ -269,7 +269,7 @@ function App() {
 		const openFilePaths = new Set(
 			tabs.flatMap(tab => (tab.filePath ? [tab.filePath] : [])),
 		);
-		const folderMatches = directorySearchMatches
+		const folderMatches: SearchMatch[] = directorySearchMatches
 			.filter(match => !openFilePaths.has(match.path))
 			.map(match => ({
 				filePath: match.path,
