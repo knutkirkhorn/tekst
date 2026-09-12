@@ -1,7 +1,7 @@
 import Editor, {type Monaco, type OnMount} from '@monaco-editor/react';
 import {getVersion} from '@tauri-apps/api/app';
-import {listen} from '@tauri-apps/api/event';
 import {invoke} from '@tauri-apps/api/core';
+import {listen} from '@tauri-apps/api/event';
 import {join} from '@tauri-apps/api/path';
 import {getCurrentWebview, type DragDropEvent} from '@tauri-apps/api/webview';
 import {getCurrentWindow} from '@tauri-apps/api/window';
@@ -138,6 +138,7 @@ function searchOpenTabs(tabs: EditorTab[], query: string): SearchMatch[] {
 	for (const tab of tabs) {
 		const lines = tab.content.split(/\r?\n/);
 		for (const [index, line] of lines.entries()) {
+			// eslint-disable-next-line unicorn/no-break-in-nested-loop
 			if (!line.toLocaleLowerCase().includes(normalizedQuery)) continue;
 			matches.push({
 				tabId: tab.id,
@@ -264,26 +265,23 @@ function App() {
 	tabsRef.current = tabs;
 
 	const activeTab = tabs.find(tab => tab.id === activeTabId) ?? tabs[0];
-	const sidebarSearchMatches = useMemo(
-		() => {
-			const openFilePaths = new Set(
-				tabs.flatMap(tab => (tab.filePath ? [tab.filePath] : [])),
-			);
-			const folderMatches = directorySearchMatches
-				.filter(match => !openFilePaths.has(match.path))
-				.map(match => ({
-					filePath: match.path,
-					fileName: fileNameFromPath(match.path),
-					line: match.line,
-					preview: match.preview || 'Blank line',
-				}));
-			return [...searchOpenTabs(tabs, sidebarSearchQuery), ...folderMatches].slice(
-				0,
-				100,
-			);
-		},
-		[tabs, sidebarSearchQuery, directorySearchMatches],
-	);
+	const sidebarSearchMatches = useMemo(() => {
+		const openFilePaths = new Set(
+			tabs.flatMap(tab => (tab.filePath ? [tab.filePath] : [])),
+		);
+		const folderMatches = directorySearchMatches
+			.filter(match => !openFilePaths.has(match.path))
+			.map(match => ({
+				filePath: match.path,
+				fileName: fileNameFromPath(match.path),
+				line: match.line,
+				preview: match.preview || 'Blank line',
+			}));
+		return [
+			...searchOpenTabs(tabs, sidebarSearchQuery),
+			...folderMatches,
+		].slice(0, 100);
+	}, [tabs, sidebarSearchQuery, directorySearchMatches]);
 
 	const updateTabDirty = useCallback((id: string, content: string) => {
 		setTabs(currentTabs =>
@@ -524,22 +522,26 @@ function App() {
 		return model?.getValue() ?? tab.content;
 	}, []);
 
-	const openSearchMatch = useCallback((match: SearchMatch) => {
-		const revealMatch = () => requestAnimationFrame(() => {
-			const editor = editorRef.current;
-			if (!editor) return;
-			editor.revealLineInCenter(match.line);
-			editor.setPosition({lineNumber: match.line, column: 1});
-			editor.focus();
-		});
+	const openSearchMatch = useCallback(
+		(match: SearchMatch) => {
+			const revealMatch = () =>
+				requestAnimationFrame(() => {
+					const editor = editorRef.current;
+					if (!editor) return;
+					editor.revealLineInCenter(match.line);
+					editor.setPosition({lineNumber: match.line, column: 1});
+					editor.focus();
+				});
 
-		if (match.tabId) {
-			setActiveTabId(match.tabId);
-			revealMatch();
-		} else if (match.filePath) {
-			void openPaths([match.filePath]).then(revealMatch);
-		}
-	}, [openPaths]);
+			if (match.tabId) {
+				setActiveTabId(match.tabId);
+				revealMatch();
+			} else if (match.filePath) {
+				void openPaths([match.filePath]).then(revealMatch);
+			}
+		},
+		[openPaths],
+	);
 
 	const saveTab = useCallback(
 		async (tab: EditorTab, isSaveAs = false) => {
@@ -952,6 +954,7 @@ function App() {
 
 		let isCurrent = true;
 		setDirectorySearchMatches([]);
+		// eslint-disable-next-line unicorn/no-unnecessary-global-this
 		const timer = globalThis.setTimeout(() => {
 			void invoke<DirectorySearchMatch[]>('search_directory', {
 				root: directoryRoot.path,
@@ -961,15 +964,19 @@ function App() {
 					if (isCurrent) setDirectorySearchMatches(matches);
 				})
 				.catch(error => {
-					if (isCurrent) {
-						setDirectorySearchMatches([]);
-						setStatus(`Folder search failed: ${String(error)}`);
+					if (!isCurrent) {
+						return;
 					}
+
+					setDirectorySearchMatches([]);
+					setStatus(`Folder search failed: ${String(error)}`);
 				});
 		}, 150);
 
+		// eslint-disable-next-line consistent-return
 		return () => {
 			isCurrent = false;
+			// eslint-disable-next-line unicorn/no-unnecessary-global-this
 			globalThis.clearTimeout(timer);
 		};
 	}, [directoryRoot, sidebarSearchQuery]);
@@ -1515,7 +1522,7 @@ function App() {
 						<div className="sidebar-header">
 							<span title={directoryRoot?.path}>
 								{sidebarMode === 'files'
-									? directoryRoot?.name ?? 'Explorer'
+									? (directoryRoot?.name ?? 'Explorer')
 									: 'Search'}
 							</span>
 							<button
@@ -1570,7 +1577,9 @@ function App() {
 													className="sidebar-search-result"
 													onClick={() => openSearchMatch(match)}
 												>
-													<span>{match.fileName} : {match.line}</span>
+													<span>
+														{match.fileName} : {match.line}
+													</span>
 													<small>{match.preview}</small>
 												</button>
 											))}
